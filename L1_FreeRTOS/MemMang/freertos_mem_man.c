@@ -14,7 +14,7 @@
  *     You can reach the author of this software at :
  *          p r e e t . w i k i @ g m a i l . c o m
  */
-#include "FreeRTOS.h"
+#include "FreeRTOSConfig.h"
 
 #if 1 == configMEM_MANG_TYPE
     #include "heap_1.c.inc"
