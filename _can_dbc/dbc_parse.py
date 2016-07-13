@@ -104,12 +104,18 @@ class Signal(object):
 
         # Min/Max check
         if self.min_val != 0 or self.max_val != 0:
-            code += ("    if(" + var_name + " < " + self.min_val_str + ") { " + var_name + " = " + self.min_val_str + "; }\n")
-            code += ("    if(" + var_name + " > " + self.max_val_str + ") { " + var_name + " = " + self.max_val_str + "; }\n")
+            code += ("    if(" + var_name + " < " + self.min_val_str + ") { " + var_name + " = " + self.min_val_str + "; } // Min value: " + self.min_val_str + "\n")
+            code += ("    if(" + var_name + " > " + self.max_val_str + ") { " + var_name + " = " + self.max_val_str + "; } // Max value: " + self.max_val_str + "\n")
 
         # Compute binary value (both little and big endian)
         # Encode should subtract offset then divide
-        code += ("    " + raw_sig_name + " = ((uint64_t)(((" + var_name + " - (" + self.offset_str + ")) / " + str(self.scale) + ") + 0.5))")
+        s = (raw_sig_name + " = ((uint32_t)(((" + var_name + " - (" + self.offset_str + ")) / " + str(self.scale) + ") + 0.5))")
+
+        # Optimize
+        s = s.replace(" - (0)", "")
+        s = s.replace(" / 1.0)", ")")
+
+        code += ("    " + s)
         code += (" & 0x" + format(2 ** self.bit_size - 1, '02x') + ";\n")
 
         bit_pos = self.bit_start
@@ -121,9 +127,15 @@ class Signal(object):
             else:
                 bits_in_this_byte = remaining
 
-            code += ("    bytes[" + str(byte_num) + "] |= (((uint8_t)(" + raw_sig_name + " >> " + str(bit_pos - self.bit_start) + ")")
-            code += (" & 0x" + format(2 ** bits_in_this_byte - 1, '02x') + ") << " + str(bit_pos % 8) + ")")
-            code += ("; ///< " + str(bits_in_this_byte) + " bit(s) starting from B" + str(bit_pos) + "\n")
+            s = ""
+            s += ("    bytes[" + str(byte_num) + "] |= (((uint8_t)(" + raw_sig_name + " >> " + str(bit_pos - self.bit_start) + ")")
+            s += (" & 0x" + format(2 ** bits_in_this_byte - 1, '02x') + ") << " + str(bit_pos % 8) + ")")
+            s += ("; ///< " + str(bits_in_this_byte) + " bit(s) starting from B" + str(bit_pos) + "\n")
+            # Optimize
+            s = s.replace(" >> 0", "")
+            s = s.replace(" << 0", "")
+
+            code += s
             byte_num += 1
 
             bit_pos += bits_in_this_byte
@@ -144,9 +156,15 @@ class Signal(object):
             else:
                 bits_in_this_byte = remaining
 
-            code += (LINE_BEG + raw_sig_name + " |= ((uint64_t)((bytes[" + str(byte_num) + "] >> " + str(bit_pos % 8) + ")")
-            code += (" & 0x" + format(2 ** bits_in_this_byte - 1, '02x') + ")) << " + str(bit_count) + ";")
-            code += (" ///< " + str(bits_in_this_byte) + " bit(s) from B" + str(bit_pos) + "\n")
+            s = ""
+            s += (LINE_BEG + raw_sig_name + " |= ((uint32_t)((bytes[" + str(byte_num) + "] >> " + str(bit_pos % 8) + ")")
+            s += (" & 0x" + format(2 ** bits_in_this_byte - 1, '02x') + ")) << " + str(bit_count) + ";")
+            s += (" ///< " + str(bits_in_this_byte) + " bit(s) from B" + str(bit_pos) + "\n")
+
+            # Optimize
+            s = s.replace(" >> 0", "")
+            s = s.replace(" << 0", "")
+            code += s
 
             if bit_count == 0:
                 code = code.replace("|=", " =")
@@ -161,7 +179,12 @@ class Signal(object):
         if self.is_enum_type():
             enum_cast = "(" + self.get_code_var_type() + ")"
 
-        code += (prefix + self.name + " = " + enum_cast + " ((" + raw_sig_name + " * " + str(self.scale) + ") + (" + self.offset_str + "));\n")
+        s = (prefix + self.name + " = " + enum_cast + "((" + raw_sig_name + " * " + str(self.scale) + ") + (" + self.offset_str + "));\n")
+
+        # Optimize
+        s = s.replace(" + (0)", "")
+        s = s.replace(" * 1.0)", ")")
+        code += s
 
         return code
 
@@ -182,7 +205,8 @@ class Message(object):
         self.signals.append(s)
 
     def get_struct_name(self):
-        return "%s_TX_%s_t" % (self.sender, self.name)
+        return "%s_t" % (self.name)
+        #return "%s_TX_%s_t" % (self.sender, self.name)
 
     def is_recipient_of_at_least_one_sig(self, node):
         for s in self.signals:
@@ -271,12 +295,13 @@ class Message(object):
         if self.contains_muxed_signals():
             muxes = self.get_muxes()
             for mux in muxes[1:]:
-                code += ("static msg_hdr_t " + self.get_struct_name()[:-2] + "_" + str(mux) + "_encode")
-                code += ("(uint64_t *to, " + self.get_struct_name()[:-2] + "_" + str(mux) + "_t *from)\n")
+                code += ("\n/// Encode " + self.sender + "'s '" + self.name + "' MUX(" + str(mux) + ") message\n")
+                code += ("/// @returns the message header of this message\n")
+                code += ("static msg_hdr_t dbc_encode_" + self.get_struct_name()[:-2] + "_" + str(mux))
+                code += ("(uint8_t bytes[8], " + self.get_struct_name()[:-2] + "_" + str(mux) + "_t *from)\n")
                 code += ("{\n")
-                code += ("    uint64_t raw;\n")
-                code += ("    uint8_t *bytes = (uint8_t*) to;\n")
-                code += ("    *to = 0; ///< Default the entire destination data with zeroes\n\n")
+                code += ("    uint32_t raw;\n")
+                code += ("    bytes[0]=bytes[1]=bytes[2]=bytes[3]=bytes[4]=bytes[5]=bytes[6]=bytes[7]=0;\n\n")
                 code += ("    // Set the MUX index value\n")
                 muxed_idx = self.get_mux_index_signal()
                 code += muxed_idx.get_encode_code("raw", str(mux)[1:])
@@ -301,11 +326,10 @@ class Message(object):
         else:
             code += ("\n/// Encode " + self.sender + "'s '" + self.name + "' message\n")
             code += ("/// @returns the message header of this message\n")
-            code += ("static msg_hdr_t " + self.get_struct_name()[:-2] + "_encode(uint64_t *to, " + self.get_struct_name() + " *from)\n")
+            code += ("static msg_hdr_t dbc_encode_" + self.get_struct_name()[:-2] + "(uint8_t bytes[8], " + self.get_struct_name() + " *from)\n")
             code += ("{\n")
-            code += ("    *to = 0; ///< Default the entire destination data with zeroes\n")
-            code += ("    uint64_t raw;\n")
-            code += ("    uint8_t *bytes = (uint8_t*) to;\n")
+            code += ("    uint32_t raw;\n")
+            code += ("    bytes[0]=bytes[1]=bytes[2]=bytes[3]=bytes[4]=bytes[5]=bytes[6]=bytes[7]=0;\n")
             code += ("\n")
 
             for s in self.signals:
@@ -335,14 +359,13 @@ class Message(object):
         code = ''
         code += ("\n/// Decode " + self.sender + "'s '" + self.name + "' message\n")
         code += ("/// @param hdr  The header of the message to validate its DLC and MID; this can be NULL to skip this check\n")
-        code += ("static inline bool " + self.get_struct_name()[:-2] + "_decode(" + self.get_struct_name() + " *to, const uint64_t *from, const msg_hdr_t *hdr)\n")
+        code += ("static inline bool dbc_decode_" + self.get_struct_name()[:-2] + "(" + self.get_struct_name() + " *to, const uint8_t bytes[8], const msg_hdr_t *hdr)\n")
         code += ("{\n")
         code += ("    const bool success = true;\n")
         code += ("    if (NULL != hdr && (hdr->dlc != " + self.get_struct_name()[:-2] + "_HDR.dlc || hdr->mid != " + self.get_struct_name()[:-2] + "_HDR.mid)) {\n")
         code += ("        return !success;\n")
         code += ("    }\n")
-        code += ("    uint64_t " + raw_sig_name + ";\n")
-        code += ("    const uint8_t *bytes = (const uint8_t*) from;\n\n")
+        code += ("    uint32_t " + raw_sig_name + ";\n")
 
         if self.contains_muxed_signals():
             # Decode the Mux and store it into it own variable type
@@ -483,12 +506,12 @@ class DBC(object):
                 muxes = m.get_muxes()
                 for mux in muxes[1:]:
                     code += self._gen_mia_func_header(m.sender, m.name + " for MUX \"" + mux + '"')
-                    code += ("static inline bool " + m.get_struct_name()[:-2] + "_" + mux + "_handle_mia(")
+                    code += ("static inline bool dbc_handle_mia_" + m.get_struct_name()[:-2] + "_" + mux + "(")
                     code += (m.get_struct_name()[:-2] + "_" + mux + "_t *msg, uint32_t time_incr_ms)\n")
                     code += self._get_mia_func_body(m.name + "_" + mux)
             else:
                 code += self._gen_mia_func_header(m.sender, m.name)
-                code += ("static inline bool " + m.get_struct_name()[:-2] + "_handle_mia(" + m.get_struct_name() + " *msg, uint32_t time_incr_ms)\n")
+                code += ("static inline bool dbc_handle_mia" + m.get_struct_name()[:-2] + "(" + m.get_struct_name() + " *msg, uint32_t time_incr_ms)\n")
                 code += self._get_mia_func_body(m.name)
             
         return code
