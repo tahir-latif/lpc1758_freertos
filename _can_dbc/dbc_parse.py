@@ -24,6 +24,7 @@ def is_empty(s):
 
 class Signal(object):
     def __init__(self, name, bit_start, bit_size, is_unsigned, scale, offset, min_val, max_val, recipients, mux):
+        self.has_field_type = False
         self.name = name
         self.bit_start = int(bit_start)
         self.bit_size = int(bit_size)
@@ -439,13 +440,14 @@ class DBC(object):
         for m in self.messages:
             if not m.contains_enums():
                 continue
-            if m.is_recipient_of_at_least_one_sig(self.self_node) or self.self_node == m.sender:
-                code += ("/// Enumeration for Message: '" + m.name + "' from '" + m.sender + "'\n")
+            if self.gen_all or m.is_recipient_of_at_least_one_sig(self.self_node) or self.self_node == m.sender:
+                code += ("/// Enumeration(s) for Message: '" + m.name + "' from '" + m.sender + "'\n")
                 for s in m.signals:
-                    code += "typedef enum {\n"
-                    for key in s.enum_info:
-                        code += "    " + key + " = " + s.enum_info[key] + ",\n"
-                    code += "} " + s.name + "_E ;\n"
+                    if s.is_enum_type():
+                        code += "typedef enum {\n"
+                        for key in s.enum_info:
+                            code += "    " + key + " = " + s.enum_info[key] + ",\n"
+                        code += "} " + s.name + "_E ;\n\n"
         code += "\n"
         return code
 
@@ -598,6 +600,21 @@ def main(argv):
             sig = Signal(t[1], bit_start, bit_size, is_unsigned, scale, offset, min_val, max_val, recipients, mux)
             dbc.messages[-1].add_signal(sig)
 
+        # Parse the "FieldType" which is the trigger to use enumeration type for certain signals
+        if line.startswith('BA_ "FieldType"'):
+            t = line[1:].split(' ')  # BA_ "FieldType" SG_ 123 Some_sig "Some_sig";
+            sig_mid = t[3]
+            sig_name = t[4]
+
+            # Locate the message and the signal whom this "FieldType" type belongs to
+            for msg in dbc.messages:
+                if msg.mid == sig_mid:
+                    for s in msg.signals:
+                        if s.name == sig_name:
+                            s.has_field_type = True
+                            print ("// " + s.name + " has FieldType")
+                            break
+
         # Enumeration types
         if line.startswith("VAL_ "):
             t = line[1:].split(' ')
@@ -612,7 +629,7 @@ def main(argv):
             for msg in dbc.messages:
                 if msg.mid == sig_mid:
                     for s in msg.signals:
-                        if s.name == enum_name:
+                        if s.name == enum_name and s.has_field_type:
                             s.enum_info = pairs
                             break
 
@@ -648,14 +665,14 @@ def main(argv):
     # Generate encode methods
     for m in dbc.messages:
         if not gen_all and m.sender != self_node:
-            print ("\n/// Not generating code for " + m.get_struct_name()[:-2] + "_encode() since the sender is " + m.sender + " and we are " + self_node)
+            print ("\n/// Not generating code for dbc_encode_" + m.get_struct_name()[:-2] + "() since the sender is " + m.sender + " and we are " + self_node)
         else:
             print (m.get_encode_code())
 
     # Generate decode methods
     for m in dbc.messages:
         if not gen_all and not m.is_recipient_of_at_least_one_sig(self_node):
-            print ("\n/// Not generating code for " + m.get_struct_name()[:-2] + "_decode() since '" + self_node + "' is not the recipient of any of the signals")
+            print ("\n/// Not generating code for dbc_decode_" + m.get_struct_name()[:-2] + "() since '" + self_node + "' is not the recipient of any of the signals")
         else:
             print (m.get_decode_code())
 
