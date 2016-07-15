@@ -50,6 +50,10 @@ class Signal(object):
     def is_muxed(self):
         return '__NO__MUX__' != self.mux
 
+    def is_unsigned_var(self):
+        t = self.get_code_var_type()
+        return t.find("uint") == 0
+
     def get_code_var_type(self):
         if '.' in self.scale_str:
             return "float"
@@ -76,9 +80,9 @@ class Signal(object):
         code = ""
         code += "    " + self.get_code_var_type() + " " + self.name
         if self.bit_size <= 4:
-             code += " : " + str(self.bit_size) + ";"
+            code += " : " + str(self.bit_size) + ";"
         else:
-             code += ";"
+            code += ";"
 
         # Align the start of the comments
         for i in range(len(code), 45):
@@ -104,7 +108,11 @@ class Signal(object):
 
         # Min/Max check
         if self.min_val != 0 or self.max_val != 0:
-            code += ("    if(" + var_name + " < " + self.min_val_str + ") { " + var_name + " = " + self.min_val_str + "; } // Min value: " + self.min_val_str + "\n")
+            # If signal is unsigned, and min value is zero, then do not check for '< 0'
+            if not (self.is_unsigned_var() and self.min_val == 0):
+                code += ("    if(" + var_name + " < " + self.min_val_str + ") { " + var_name + " = " + self.min_val_str + "; } // Min value: " + self.min_val_str + "\n")
+            else:
+                code += "    // Not doing min value check since the signal is unsigned already\n"
             code += ("    if(" + var_name + " > " + self.max_val_str + ") { " + var_name + " = " + self.max_val_str + "; } // Max value: " + self.max_val_str + "\n")
 
         # Compute binary value (both little and big endian)
@@ -114,6 +122,8 @@ class Signal(object):
         # Optimize
         s = s.replace(" - (0)", "")
         s = s.replace(" / 1.0)", ")")
+        if self.scale == 1:
+            s = s.replace(" + 0.5", "")
 
         code += ("    " + s)
         code += (" & 0x" + format(2 ** self.bit_size - 1, '02x') + ";\n")
@@ -128,7 +138,8 @@ class Signal(object):
                 bits_in_this_byte = remaining
 
             s = ""
-            s += ("    bytes[" + str(byte_num) + "] |= (((uint8_t)(" + raw_sig_name + " >> " + str(bit_pos - self.bit_start) + ")")
+            s += ("    bytes[" + str(byte_num) + "] |= (((uint8_t)(" + raw_sig_name + " >> " + str(
+                bit_pos - self.bit_start) + ")")
             s += (" & 0x" + format(2 ** bits_in_this_byte - 1, '02x') + ") << " + str(bit_pos % 8) + ")")
             s += ("; ///< " + str(bits_in_this_byte) + " bit(s) starting from B" + str(bit_pos) + "\n")
             # Optimize
@@ -157,7 +168,8 @@ class Signal(object):
                 bits_in_this_byte = remaining
 
             s = ""
-            s += (LINE_BEG + raw_sig_name + " |= ((uint32_t)((bytes[" + str(byte_num) + "] >> " + str(bit_pos % 8) + ")")
+            s += (
+            LINE_BEG + raw_sig_name + " |= ((uint32_t)((bytes[" + str(byte_num) + "] >> " + str(bit_pos % 8) + ")")
             s += (" & 0x" + format(2 ** bits_in_this_byte - 1, '02x') + ")) << " + str(bit_count) + ";")
             s += (" ///< " + str(bits_in_this_byte) + " bit(s) from B" + str(bit_pos) + "\n")
 
@@ -179,7 +191,8 @@ class Signal(object):
         if self.is_enum_type():
             enum_cast = "(" + self.get_code_var_type() + ")"
 
-        s = (prefix + self.name + " = " + enum_cast + "((" + raw_sig_name + " * " + str(self.scale) + ") + (" + self.offset_str + "));\n")
+        s = (prefix + self.name + " = " + enum_cast + "((" + raw_sig_name + " * " + str(
+            self.scale) + ") + (" + self.offset_str + "));\n")
 
         # Optimize
         s = s.replace(" + (0)", "")
@@ -206,7 +219,7 @@ class Message(object):
 
     def get_struct_name(self):
         return "%s_t" % (self.name)
-        #return "%s_TX_%s_t" % (self.sender, self.name)
+        # return "%s_TX_%s_t" % (self.sender, self.name)
 
     def is_recipient_of_at_least_one_sig(self, node):
         for s in self.signals:
@@ -242,14 +255,14 @@ class Message(object):
     # TODO: Do not generate this struct if we are not the recipient of any of the signals of this MUX
     def get_struct_for_mux(self, mux, non_muxed_signals):
         code = '\n'
-        code += ("/// Struct for MUX: " + mux + "\n")
+        code += ("/// Struct for MUX: " + mux + " (used for transmitting)\n")
         code += ("typedef struct {\n")
         code += non_muxed_signals
 
         for s in self.signals:
             if s.mux == mux:
                 code += (s.get_signal_code())
-        code += ("\n    mia_info_t mia_info;")
+        code += ("\n    dbc_mia_info_t mia_info;")
         code += ("\n} " + self.get_struct_name()[:-2] + "_" + str(mux) + "_t;\n")
         return code
 
@@ -269,23 +282,25 @@ class Message(object):
                 code += self.get_struct_for_mux(m, non_muxed_signals)
 
             # Parent data structure
-            code += ("\n/// Struct with all the child MUX'd signals\n")
-            code += ("typedef struct {\n")
+            code += "\n/// Struct with all the child MUX'd signals (Used for receiving)\n"
+            code += "typedef struct {\n"
 
             # Child struct instances of the Mux'd signals
             for m in muxes[1:]:
-                code += ("    " + self.get_struct_name()[:-2] + "_" + str(m) + "_t " + str(m) + "; ///< MUX'd structure\n")
+                code += (
+                "    " + self.get_struct_name()[:-2] + "_" + str(m) + "_t " + str(m) + "; ///< MUX'd structure\n")
             code += ("} " + self.get_struct_name() + ";\n")
 
             code += ("/// @} MUX'd message\n")
         else:
-            code += ("\n/// Message: " + self.name + " from '" + self.sender + "', DLC: " + self.dlc + " byte(s), MID: " + self.mid + "\n")
+            code += (
+            "\n/// Message: " + self.name + " from '" + self.sender + "', DLC: " + self.dlc + " byte(s), MID: " + self.mid + "\n")
             code += ("typedef struct {\n")
             for s in self.signals:
                 if gen_all or self_node in s.recipients or self.sender == self_node:
                     code += (s.get_signal_code())
 
-            code += ("\n    mia_info_t mia_info;")
+            code += ("\n    dbc_mia_info_t mia_info;")
             code += ("\n} " + self.get_struct_name() + ";\n")
 
         return code
@@ -297,7 +312,7 @@ class Message(object):
             for mux in muxes[1:]:
                 code += ("\n/// Encode " + self.sender + "'s '" + self.name + "' MUX(" + str(mux) + ") message\n")
                 code += ("/// @returns the message header of this message\n")
-                code += ("static msg_hdr_t dbc_encode_" + self.get_struct_name()[:-2] + "_" + str(mux))
+                code += ("static dbc_msg_hdr_t dbc_encode_" + self.get_struct_name()[:-2] + "_" + str(mux))
                 code += ("(uint8_t bytes[8], " + self.get_struct_name()[:-2] + "_" + str(mux) + "_t *from)\n")
                 code += ("{\n")
                 code += ("    uint32_t raw;\n")
@@ -326,7 +341,8 @@ class Message(object):
         else:
             code += ("\n/// Encode " + self.sender + "'s '" + self.name + "' message\n")
             code += ("/// @returns the message header of this message\n")
-            code += ("static msg_hdr_t dbc_encode_" + self.get_struct_name()[:-2] + "(uint8_t bytes[8], " + self.get_struct_name() + " *from)\n")
+            code += ("static dbc_msg_hdr_t dbc_encode_" + self.get_struct_name()[
+                                                      :-2] + "(uint8_t bytes[8], " + self.get_struct_name() + " *from)\n")
             code += ("{\n")
             code += ("    uint32_t raw;\n")
             code += ("    bytes[0]=bytes[1]=bytes[2]=bytes[3]=bytes[4]=bytes[5]=bytes[6]=bytes[7]=0;\n")
@@ -358,11 +374,15 @@ class Message(object):
         raw_sig_name = "raw"
         code = ''
         code += ("\n/// Decode " + self.sender + "'s '" + self.name + "' message\n")
-        code += ("/// @param hdr  The header of the message to validate its DLC and MID; this can be NULL to skip this check\n")
-        code += ("static inline bool dbc_decode_" + self.get_struct_name()[:-2] + "(" + self.get_struct_name() + " *to, const uint8_t bytes[8], const msg_hdr_t *hdr)\n")
+        code += (
+        "/// @param hdr  The header of the message to validate its DLC and MID; this can be NULL to skip this check\n")
+        code += ("static inline bool dbc_decode_" + self.get_struct_name()[
+                                                    :-2] + "(" + self.get_struct_name() + " *to, const uint8_t bytes[8], const dbc_msg_hdr_t *hdr)\n")
         code += ("{\n")
         code += ("    const bool success = true;\n")
-        code += ("    if (NULL != hdr && (hdr->dlc != " + self.get_struct_name()[:-2] + "_HDR.dlc || hdr->mid != " + self.get_struct_name()[:-2] + "_HDR.mid)) {\n")
+        code += ("    if (NULL != hdr && (hdr->dlc != " + self.get_struct_name()[
+                                                          :-2] + "_HDR.dlc || hdr->mid != " + self.get_struct_name()[
+                                                                                              :-2] + "_HDR.mid)) {\n")
         code += ("        return !success;\n")
         code += ("    }\n")
         code += ("    uint32_t " + raw_sig_name + ";\n")
@@ -371,7 +391,8 @@ class Message(object):
             # Decode the Mux and store it into it own variable type
             muxed_sig = self.get_mux_index_signal()
             code += ("    // Decode the MUX\n")
-            code += (muxed_sig.get_decode_code(raw_sig_name).replace(LINE_BEG, "    ")).replace(muxed_sig.name, "    const " + muxed_sig.get_code_var_type() + " MUX")
+            code += (muxed_sig.get_decode_code(raw_sig_name).replace(LINE_BEG, "    ")).replace(muxed_sig.name,
+                                                                                                "    const " + muxed_sig.get_code_var_type() + " MUX")
             code += ("\n")
 
             # Decode the Mux'd signal(s)
@@ -431,7 +452,7 @@ class DBC(object):
         code += ("typedef struct { \n")
         code += ("    uint32_t mid; ///< Message ID of the message\n")
         code += ("    uint8_t  dlc; ///< Data length of the message\n")
-        code += ("} msg_hdr_t; \n")
+        code += ("} dbc_msg_hdr_t; \n")
         return code
 
     def gen_enum_types(self):
@@ -452,10 +473,11 @@ class DBC(object):
     def gen_msg_hdr_instances(self):
         code = ''
         for m in self.messages:
-            if not self.gen_all and not m.is_recipient_of_at_least_one_sig(self.self_node) and self.self_node != m.sender:
+            if not self.gen_all and not m.is_recipient_of_at_least_one_sig(
+                    self.self_node) and self.self_node != m.sender:
                 code += "// "
-            code += ("static const msg_hdr_t " + (m.get_struct_name()[:-2] + "_HDR = ").ljust(32 + 7))
-            code += ("{ " +  str(m.mid).rjust(4) + ", " + m.dlc + " };\n")
+            code += ("static const dbc_msg_hdr_t " + (m.get_struct_name()[:-2] + "_HDR = ").ljust(32 + 7))
+            code += ("{ " + str(m.mid).rjust(4) + ", " + m.dlc + " };\n")
         return code
 
     def gen_mia_struct(self):
@@ -463,7 +485,7 @@ class DBC(object):
         code += ("typedef struct {\n")
         code += ("    uint32_t is_mia : 1;          ///< Missing in action flag\n")
         code += ("    uint32_t mia_counter_ms : 31; ///< Missing in action counter\n")
-        code += ("} mia_info_t;\n")
+        code += ("} dbc_mia_info_t;\n")
         return code
 
     def _gen_mia_func_header(self, sender, msg_name):
@@ -478,13 +500,13 @@ class DBC(object):
         code = ''
         code += ("{\n")
         code += ("    bool mia_occurred = false;\n")
-        code += ("    const mia_info_t old_mia = msg->mia_info;\n")
+        code += ("    const dbc_mia_info_t old_mia = msg->mia_info;\n")
         code += ("    msg->mia_info.is_mia = (msg->mia_info.mia_counter_ms >= " + msg_name + "__MIA_MS);\n")
         code += ("\n")
-        code += ("    if (!msg->mia_info.is_mia) { \n")
+        code += ("    if (!msg->mia_info.is_mia) { // Not MIA yet, so keep incrementing the MIA counter\n")
         code += ("        msg->mia_info.mia_counter_ms += time_incr_ms;\n")
         code += ("    }\n")
-        code += ("    else if(!old_mia.is_mia)   { \n")
+        code += ("    else if(!old_mia.is_mia)   { // Previously not MIA, but it is MIA now\n")
         code += ("        // Copy MIA struct, then re-write the MIA counter and is_mia that is overwriten\n")
         code += ("        *msg = " + msg_name + "__MIA_MSG;\n")
         code += ("        msg->mia_info.mia_counter_ms = " + msg_name + "__MIA_MS;\n")
@@ -511,26 +533,27 @@ class DBC(object):
                     code += self._get_mia_func_body(m.name + "_" + mux)
             else:
                 code += self._gen_mia_func_header(m.sender, m.name)
-                code += ("static inline bool dbc_handle_mia" + m.get_struct_name()[:-2] + "(" + m.get_struct_name() + " *msg, uint32_t time_incr_ms)\n")
+                code += ("static inline bool dbc_handle_mia_" + m.get_struct_name()[
+                                                               :-2] + "(" + m.get_struct_name() + " *msg, uint32_t time_incr_ms)\n")
                 code += self._get_mia_func_body(m.name)
-            
+
         return code
 
 
 def main(argv):
-    dbcfile = '243.dbc'     # Default value unless overriden
-    self_node = 'DRIVER'    # Default value unless overriden
-    gen_all = False
+    dbcfile = '243.dbc'  # Default value unless overriden
+    self_node = 'DRIVER'  # Default value unless overriden
+    gen_all = True
     big_endian = False
 
     try:
         opts, args = getopt.getopt(argv, "hi:s:a:b", ["ifile=", "self=", "all", "big"])
     except getopt.GetoptError:
-        print ('dbc_parse.py -i <dbcfile> -s <self_node> <-a> <-b>')
+        print('dbc_parse.py -i <dbcfile> -s <self_node> <-a> <-b>')
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print ('dbc_parse.py -i <dbcfile> -s <self_node> <-a> <-b>')
+            print('dbc_parse.py -i <dbcfile> -s <self_node> <-a> <-b>')
             sys.exit()
         elif opt in ("-i", "--ifile"):
             dbcfile = arg
@@ -554,10 +577,10 @@ def main(argv):
             nodes = line.strip("\n").split(' ')
             dbc.nodes = (nodes[1:])
             if self_node not in dbc.nodes:
-                print ('/////////////////////////////// ERROR /////////////////////////////////////')
-                print ('#error "Self node: ' + self_node + ' not found in _BU nodes in the DBC file"')
-                print ('/////////////////////////////// ERROR /////////////////////////////////////')
-                print ('')
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('#error "Self node: ' + self_node + ' not found in _BU nodes in the DBC file"')
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('')
 
         # Start of a message
         if line.startswith("BO_ "):
@@ -605,8 +628,8 @@ def main(argv):
             enum_name = t[2]
             pairs = {}
             t = t[3:]
-            for i in range(0, int(len(t)/2)):
-                pairs[t[i*2+1].replace('"', '').replace(';\n', '')] = t[i*2]
+            for i in range(0, int(len(t) / 2)):
+                pairs[t[i * 2 + 1].replace('"', '').replace(';\n', '')] = t[i * 2]
 
             # Locate the message and the signal whom this enumeration type belongs to
             for msg in dbc.messages:
@@ -616,51 +639,56 @@ def main(argv):
                             s.enum_info = pairs
                             break
 
-    print (dbc.gen_file_header())
-    print ("\n")
+    print(dbc.gen_file_header())
+    print("\n")
 
     # Generate header structs and MIA struct
-    print (dbc.gen_mia_struct())
-    print (dbc.gen_msg_hdr_struct())
-    print (dbc.gen_msg_hdr_instances())
-    print (dbc.gen_enum_types())
+    print(dbc.gen_mia_struct())
+    print(dbc.gen_msg_hdr_struct())
+    print(dbc.gen_msg_hdr_instances())
+    print(dbc.gen_enum_types())
 
     # Generate converted struct types for each message
     for m in dbc.messages:
         if not gen_all and not m.is_recipient_of_at_least_one_sig(self_node) and m.sender != self_node:
-            code = ("\n/// Not generating '" + m.get_struct_name() + "' since we are not the sender or a recipient of any of its signals")
+            code = (
+            "\n/// Not generating '" + m.get_struct_name() + "' since we are not the sender or a recipient of any of its signals")
         else:
-            print (m.gen_converted_struct(self_node, gen_all))
+            print(m.gen_converted_struct(self_node, gen_all))
 
     # Generate MIA handler "externs"
-    print ("\n/// These 'externs' need to be defined in a source file of your project")
+    print("\n/// @{ These 'externs' need to be defined in a source file of your project")
     for m in dbc.messages:
         if gen_all or m.is_recipient_of_at_least_one_sig(self_node):
             if m.contains_muxed_signals():
                 muxes = m.get_muxes()
                 for mux in muxes[1:]:
-                    print (str("extern const uint32_t ").ljust(50) + (m.name + "_" + mux + "__MIA_MS;"))
-                    print (str("extern const " + m.get_struct_name()[:-2] + "_" + mux + "_t").ljust(49) + " " + (m.name + "_" + mux + "__MIA_MSG;"))
+                    print(str("extern const uint32_t ").ljust(50) + (m.name + "_" + mux + "__MIA_MS;"))
+                    print(str("extern const " + m.get_struct_name()[:-2] + "_" + mux + "_t").ljust(49) + " " + (
+                    m.name + "_" + mux + "__MIA_MSG;"))
             else:
-                print (str("extern const uint32_t ").ljust(50) + (m.name + "__MIA_MS;"))
-                print (str("extern const " + m.get_struct_name()).ljust(49) + " " + (m.name + "__MIA_MSG;"))
+                print(str("extern const uint32_t ").ljust(50) + (m.name + "__MIA_MS;"))
+                print(str("extern const " + m.get_struct_name()).ljust(49) + " " + (m.name + "__MIA_MSG;"))
+    print("/// @}\n")
 
     # Generate encode methods
     for m in dbc.messages:
         if not gen_all and m.sender != self_node:
-            print ("\n/// Not generating code for " + m.get_struct_name()[:-2] + "_encode() since the sender is " + m.sender + " and we are " + self_node)
+            print("\n// Not generating code for " + m.get_struct_name()[
+                                                     :-2] + "_encode() since the sender is " + m.sender + " and we are " + self_node)
         else:
-            print (m.get_encode_code())
+            print(m.get_encode_code())
 
     # Generate decode methods
     for m in dbc.messages:
         if not gen_all and not m.is_recipient_of_at_least_one_sig(self_node):
-            print ("\n/// Not generating code for " + m.get_struct_name()[:-2] + "_decode() since '" + self_node + "' is not the recipient of any of the signals")
+            print("\n/// Not generating code for " + m.get_struct_name()[
+                                                     :-2] + "_decode() since '" + self_node + "' is not the recipient of any of the signals")
         else:
-            print (m.get_decode_code())
+            print(m.get_decode_code())
 
-    print (dbc.gen_mia_funcs())
-    print ("#endif")
+    print(dbc.gen_mia_funcs())
+    print("#endif")
 
 
 if __name__ == "__main__":
