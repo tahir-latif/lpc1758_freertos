@@ -550,12 +550,12 @@ class DBC(object):
 def main(argv):
     dbcfile = '243.dbc'  # Default value unless overriden
     self_node = 'DRIVER'  # Default value unless overriden
-    gen_all = True
+    gen_all = False
 
     try:
-        opts, args = getopt.getopt(argv, "hi:s:a", ["ifile=", "self=", "all"])
+        opts, args = getopt.getopt(argv, "i:s:a", ["ifile=", "self=", "all"])
     except getopt.GetoptError:
-        print('dbc_parse.py -i <dbcfile> -s <self_node> <-a> <-b>')
+        print('dbc_parse.py -i <dbcfile> -s <self_node> <-a>')
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
