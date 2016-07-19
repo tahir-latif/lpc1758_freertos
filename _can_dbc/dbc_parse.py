@@ -45,16 +45,20 @@ class Signal(object):
         if self.mux == '':
             self.mux = '__NO__MUX__'
 
+    # Returns true if the signal uses an enumeration type
     def is_enum_type(self):
         return not is_empty(self.enum_info)
 
+    # Returns true if the signal is part of MUX'd data
     def is_muxed(self):
         return '__NO__MUX__' != self.mux
 
+    # Returns true if the signal should be an unsigned type
     def is_unsigned_var(self):
         t = self.get_code_var_type()
         return t.find("uint") == 0
 
+    # Returns the variable type (float, int, or enum) based ont he signal data range
     def get_code_var_type(self):
         if '.' in self.scale_str:
             return "float"
@@ -77,6 +81,7 @@ class Signal(object):
 
             return t
 
+    # Get the signal declaration with the variable type and bit size
     def get_signal_code(self):
         code = ""
         code += "    " + self.get_code_var_type() + " " + self.name
@@ -104,6 +109,7 @@ class Signal(object):
 
         return code + "\n"
 
+    # Get the encode code of the signal
     def get_encode_code(self, raw_sig_name, var_name):
         code = ''
 
@@ -118,6 +124,7 @@ class Signal(object):
 
         # Compute binary value (both little and big endian)
         # Encode should subtract offset then divide
+        # TODO: Might have to add -0.5 for a negative signal
         s = (raw_sig_name + " = ((uint32_t)(((" + var_name + " - (" + self.offset_str + ")) / " + str(self.scale) + ") + 0.5))")
 
         # Optimize
@@ -154,6 +161,7 @@ class Signal(object):
             remaining -= bits_in_this_byte
         return code
 
+    # Get the decode code of the signal
     def get_decode_code(self, raw_sig_name, prefix=''):
         # Little and Big Endian:
         bit_pos = self.bit_start
@@ -213,44 +221,50 @@ class Message(object):
         self.name = name
         self.dlc = dlc
         self.sender = sender
-        self.signals = []
+        self.signals = {}
 
+    # Adds the signal to the dictionary of signals of this message
     def add_signal(self, s):
-        self.signals.append(s)
+        self.signals[s.name] = s
 
+    # Returns the struct name derived from the message name
     def get_struct_name(self):
         return "%s_t" % (self.name)
         # return "%s_TX_%s_t" % (self.sender, self.name)
 
+    # Returns true if the node is a recipient of at least one signal contained in the message
     def is_recipient_of_at_least_one_sig(self, node):
-        for s in self.signals:
-            if node in s.recipients:
+        for key in self.signals:
+            if node in self.signals[key].recipients:
                 return True
         return False
 
+    # Returns true if at least one message signal is a MUX'd type
     def contains_muxed_signals(self):
-        for s in self.signals:
-            if s.is_muxed():
+        for key in self.signals:
+            if self.signals[key].is_muxed():
                 return True
         return False
 
+    # Returne true if one or more of the message signal is an enumeration type
     def contains_enums(self):
-        for s in self.signals:
-            if not is_empty(s.enum_info):
+        for key in self.signals:
+            if not is_empty(self.signals[key].enum_info):
                 return True
         return False
 
     def get_muxes(self):
         muxes = []
-        for s in self.signals:
-            if s.is_muxed() and s.mux not in muxes:
-                muxes.append(s.mux)
+        for key in self.signals:
+            if self.signals[key].is_muxed() and self.signals[key].mux not in muxes:
+                muxes.append(self.signals[key].mux)
         return muxes
 
+    # Returns the message signal that defines the MUX value
     def get_mux_index_signal(self):
-        for s in self.signals:
-            if s.is_muxed() and s.mux == "M":
-                return s
+        for key in self.signals:
+            if self.signals[key].is_muxed() and self.signals[key].mux == "M":
+                return self.signals[key]
         return ""
 
     # TODO: Do not generate this struct if we are not the recipient of any of the signals of this MUX
@@ -260,9 +274,9 @@ class Message(object):
         code += ("typedef struct {\n")
         code += non_muxed_signals
 
-        for s in self.signals:
-            if s.mux == mux:
-                code += (s.get_signal_code())
+        for key in self.signals:
+            if self.signals[key].mux == mux:
+                code += (self.signals[key].get_signal_code())
         if gen_mia_struct:
             code += ("\n    dbc_mia_info_t mia_info;")
         else:
@@ -275,9 +289,9 @@ class Message(object):
         if self.contains_muxed_signals():
             # Non Muxed signals in this struct, exclude the MUXED index
             non_muxed_signals = ''
-            for s in self.signals:
-                if not s.is_muxed() and not s.mux == "M":
-                    non_muxed_signals += (s.get_signal_code())
+            for key in self.signals:
+                if not self.signals[key].is_muxed() and not self.signals[key].mux == "M":
+                    non_muxed_signals += (self.signals[key].get_signal_code())
 
             # MUX'd data structures
             code = ("/// @{ MUX'd message: " + self.name + "\n")
@@ -300,9 +314,9 @@ class Message(object):
             code += (
             "\n/// Message: " + self.name + " from '" + self.sender + "', DLC: " + self.dlc + " byte(s), MID: " + self.mid + "\n")
             code += ("typedef struct {\n")
-            for s in self.signals:
-                if gen_all or self_node in s.recipients or self.sender == self_node:
-                    code += (s.get_signal_code())
+            for key in self.signals:
+                if gen_all or self_node in self.signals[key].recipients or self.sender == self_node:
+                    code += (self.signals[key].get_signal_code())
 
             if gen_all or self_node != self.sender:
                 code += ("\n    dbc_mia_info_t mia_info;")
@@ -331,16 +345,16 @@ class Message(object):
 
                 # Non Muxed signals in this struct, exclude the MUXED index
                 code += "    // Set non MUX'd signals that need to go out with this MUX'd message\n"
-                for s in self.signals:
-                    if not s.is_muxed() and not s.mux == "M":
-                        code += s.get_encode_code("raw", "from->" + s.name)
+                for key in self.signals:
+                    if not self.signals[key].is_muxed() and not self.signals[key].mux == "M":
+                        code += self.signals[key].get_encode_code("raw", "from->" + key)
 
                 # Rest of the signals that are part of this MUX
                 code += ("\n")
                 code += ("    // Set the rest of the signals within this MUX (" + mux + ")\n")
-                for s in self.signals:
-                    if mux == s.mux:
-                        code += s.get_encode_code("raw", "from->" + s.name)
+                for key in self.signals:
+                    if mux == self.signals[key].mux:
+                        code += self.signals[key].get_encode_code("raw", "from->" + key)
 
                 code += ("\n")
                 code += ("    return " + self.get_struct_name()[:-2] + "_HDR;\n")
@@ -355,8 +369,8 @@ class Message(object):
             code += ("    bytes[0]=bytes[1]=bytes[2]=bytes[3]=bytes[4]=bytes[5]=bytes[6]=bytes[7]=0;\n")
             code += ("\n")
 
-            for s in self.signals:
-                code += s.get_encode_code("raw", "from->" + s.name) + "\n"
+            for key in self.signals:
+                code += self.signals[key].get_encode_code("raw", "from->" + key) + "\n"
 
             code += ("    return " + self.get_struct_name()[:-2] + "_HDR;\n")
             code += ("}\n")
@@ -365,16 +379,16 @@ class Message(object):
 
     def get_non_mux_signal_decode_code(self, raw_sig_name, prefix=''):
         code = ''
-        for s in self.signals:
-            if not s.is_muxed():
-                code += s.get_decode_code(raw_sig_name, prefix)
+        for key in self.signals:
+            if not self.signals[key].is_muxed():
+                code += self.signals[key].get_decode_code(raw_sig_name, prefix)
         return code
 
     def get_signal_decode_code_for_mux(self, mux, raw_sig_name, prefix=''):
         code = ''
-        for s in self.signals:
-            if s.mux == mux:
-                code += s.get_decode_code(raw_sig_name, prefix)
+        for key in self.signals:
+            if self.signals[key].mux == mux:
+                code += self.signals[key].get_decode_code(raw_sig_name, prefix)
         return code
 
     def get_decode_code(self):
@@ -439,7 +453,9 @@ class DBC(object):
         self.name = name
         self.self_node = self_node
         self.gen_all = gen_all
-        self.messages = []
+
+        # Dictionary of messages with the MSG-ID as the key
+        self.messages = {}
         self.nodes = []
 
     def gen_file_header(self):
@@ -463,23 +479,25 @@ class DBC(object):
 
     def gen_enum_types(self):
         code = ''
-        for m in self.messages:
+        for mkey in self.messages:
+            m = self.messages[mkey]
             if not m.contains_enums():
                 continue
             if self.gen_all or m.is_recipient_of_at_least_one_sig(self.self_node) or self.self_node == m.sender:
                 code += ("/// Enumeration(s) for Message: '" + m.name + "' from '" + m.sender + "'\n")
-                for s in m.signals:
-                    if s.is_enum_type():
+                for key in m.signals:
+                    if m.signals[key].is_enum_type():
                         code += "typedef enum {\n"
-                        for key in s.enum_info:
-                            code += "    " + key + " = " + s.enum_info[key] + ",\n"
-                        code += "} " + s.name + "_E ;\n\n"
+                        for enum_key in m.signals[key].enum_info:
+                            code += "    " + enum_key + " = " + m.signals[key].enum_info[enum_key] + ",\n"
+                        code += "} " + m.signals[key].name + "_E ;\n\n"
         code += "\n"
         return code
 
     def gen_msg_hdr_instances(self):
         code = ''
-        for m in self.messages:
+        for mkey in self.messages:
+            m = self.messages[mkey]
             if not self.gen_all and not m.is_recipient_of_at_least_one_sig(
                     self.self_node) and self.self_node != m.sender:
                 code += "// "
@@ -528,7 +546,8 @@ class DBC(object):
         code = ''
 
         # Generate MIA handler for the dbc.messages we are a recipient of
-        for m in self.messages:
+        for mkey in self.messages:
+            m = self.messages[mkey]
             if not self.gen_all and not m.is_recipient_of_at_least_one_sig(self.self_node):
                 continue
             if m.contains_muxed_signals():
@@ -571,6 +590,7 @@ def main(argv):
     # Parse the DBC file
     dbc = DBC(dbcfile, self_node, gen_all)
     f = open(dbcfile, "r")
+    last_mid = -1
     while 1:
         line = f.readline()
         if not line:
@@ -587,10 +607,13 @@ def main(argv):
                 print('')
 
         # Start of a message
+        # BO_ 100 DRIVER_HEARTBEAT: 1 DRIVER
         if line.startswith("BO_ "):
             tokens = line.split(' ')
-            msg = Message(tokens[1], tokens[2].strip(":"), tokens[3], tokens[4].strip("\n"))
-            dbc.messages.append(msg)
+            msg_id = tokens[1]
+            msg_name = tokens[2].strip(":")
+            dbc.messages[msg_id] = Message(msg_id, msg_name, tokens[3], tokens[4].strip("\n"))
+            last_mid = msg_id
 
         # Signals
         if line.startswith(" SG_ "):
@@ -623,7 +646,7 @@ def main(argv):
 
             # Add the signal the last message object
             sig = Signal(t[1], bit_start, bit_size, is_unsigned, scale, offset, min_val, max_val, recipients, mux)
-            dbc.messages[-1].add_signal(sig)
+            dbc.messages[last_mid].add_signal(sig)
 
         # Parse the "FieldType" which is the trigger to use enumeration type for certain signals
         if line.startswith('BA_ "FieldType"'):
@@ -632,15 +655,12 @@ def main(argv):
             sig_name = t[4]
 
             # Locate the message and the signal whom this "FieldType" type belongs to
-            for msg in dbc.messages:
-                if msg.mid == sig_mid:
-                    for s in msg.signals:
-                        if s.name == sig_name:
-                            s.has_field_type = True
-                            print ("// " + s.name + " has FieldType")
-                            break
+            if sig_mid in dbc.messages:
+                if sig_name in dbc.messages[sig_mid].signals:
+                    dbc.messages[sig_mid].signals[sig_name].has_field_type = True
 
         # Enumeration types
+        # VAL_ 100 DRIVER_HEARTBEAT_cmd 2 "DRIVER_HEARTBEAT_cmd_REBOOT" 1 "DRIVER_HEARTBEAT_cmd_SYNC" ;
         if line.startswith("VAL_ "):
             t = line[1:].split(' ')
             sig_mid = t[1]
@@ -651,12 +671,11 @@ def main(argv):
                 pairs[t[i * 2 + 1].replace('"', '').replace(';\n', '')] = t[i * 2]
 
             # Locate the message and the signal whom this enumeration type belongs to
-            for msg in dbc.messages:
-                if msg.mid == sig_mid:
-                    for s in msg.signals:
-                        if s.name == enum_name and s.has_field_type:
-                            s.enum_info = pairs
-                            break
+            if sig_mid in dbc.messages:
+                if enum_name in dbc.messages[sig_mid].signals:
+                    if dbc.messages[sig_mid].signals[enum_name].has_field_type:
+                        dbc.messages[sig_mid].signals[enum_name].enum_info = pairs
+                        added = True
 
     print(dbc.gen_file_header())
     print("\n")
@@ -668,7 +687,8 @@ def main(argv):
     print(dbc.gen_enum_types())
 
     # Generate converted struct types for each message
-    for m in dbc.messages:
+    for mid in dbc.messages:
+        m = dbc.messages[mid]
         if not gen_all and not m.is_recipient_of_at_least_one_sig(self_node) and m.sender != self_node:
             code = ("\n// Not generating '" + m.get_struct_name() + "' since we are not the sender or a recipient of any of its signals")
         else:
@@ -676,7 +696,8 @@ def main(argv):
 
     # Generate MIA handler "externs"
     print("\n/// @{ These 'externs' need to be defined in a source file of your project")
-    for m in dbc.messages:
+    for mid in dbc.messages:
+        m = dbc.messages[mid]
         if gen_all or m.is_recipient_of_at_least_one_sig(self_node):
             if m.contains_muxed_signals():
                 muxes = m.get_muxes()
@@ -690,14 +711,16 @@ def main(argv):
     print("/// @}\n")
 
     # Generate encode methods
-    for m in dbc.messages:
+    for mid in dbc.messages:
+        m = dbc.messages[mid]
         if not gen_all and m.sender != self_node:
             print ("\n/// Not generating code for dbc_encode_" + m.get_struct_name()[:-2] + "() since the sender is " + m.sender + " and we are " + self_node)
         else:
             print(m.get_encode_code())
 
     # Generate decode methods
-    for m in dbc.messages:
+    for mid in dbc.messages:
+        m = dbc.messages[mid]
         if not gen_all and not m.is_recipient_of_at_least_one_sig(self_node):
             print ("\n/// Not generating code for dbc_decode_" + m.get_struct_name()[:-2] + "() since '" + self_node + "' is not the recipient of any of the signals")
         else:
