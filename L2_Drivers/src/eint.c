@@ -18,6 +18,8 @@
 
 #include <stdlib.h>
 #include "eint.h"
+#include "FreeRTOS.h"
+#include "lpc_isr.h"
 
 
 
@@ -127,6 +129,7 @@ static void eint3_enable(uint8_t pin_num, eint_intr_t type, void_func_t func,
         *int_en_reg_ptr |= e->pin_mask;
 
         /* EINT3 shares pin interrupts with Port0 and Port2 */
+        vTraceSetISRProperties(EINT3_IRQn, "EINT3", IP_eint);
         NVIC_EnableIRQ(EINT3_IRQn);
     }
 }

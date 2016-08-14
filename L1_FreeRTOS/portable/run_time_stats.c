@@ -31,16 +31,18 @@ static uint64_t g_freertos_runtime_timer_start = 0;
 
 
 
-void vConfigureTimerForRunTimeStats( void )
+// Init the run time counter that is not used by the full trace
+void rts_not_full_trace_init( void )
 {
     /* Nothing to do, system timer should already be setup by high_level_init.cpp */
     g_freertos_runtime_timer_start = sys_get_uptime_us();
 }
-unsigned int uxGetTimerForRunTimeStats()
+
+unsigned int rts_not_full_trace_get()
 {
     return (sys_get_uptime_us() - g_freertos_runtime_timer_start);
 }
-void resetRunTimeCounter()
+void rts_not_full_trace_reset()
 {
     g_freertos_runtime_timer_start = sys_get_uptime_us();
 }

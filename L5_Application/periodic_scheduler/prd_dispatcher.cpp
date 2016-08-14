@@ -46,23 +46,37 @@ void period_task_100Hz(void *p)  { while (xSemaphoreTake(sems[prd_100Hz],  portM
 void period_task_1000Hz(void *p) { while (xSemaphoreTake(sems[prd_1000Hz], portMAX_DELAY)) period_1000Hz(); }
 /// @}
 
-periodicSchedulerTask::periodicSchedulerTask(void) :
-    scheduler_task("dispatcher", PERIOD_DISPATCHER_TASK_STACK_SIZE_BYTES, PRIORITY_CRITICAL + PRIORITY_CRITICAL + 5)
+periodicSchedulerTask::periodicSchedulerTask(bool kHz_enabled) :
+    scheduler_task("dispatcher", PERIOD_DISPATCHER_TASK_STACK_SIZE_BYTES, PRIORITY_CRITICAL + PRIORITY_CRITICAL + 5),
+    mKHz(kHz_enabled)
 {
-    setRunDuration(1);
+    setRunDuration(mKHz ? 1 : 10);
     setStatUpdateRate(0);
 
     // Create the semaphores first before creating the actual periodic tasks
     sems[prd_1Hz] = xSemaphoreCreateBinary();
     sems[prd_10Hz] = xSemaphoreCreateBinary();
     sems[prd_100Hz] = xSemaphoreCreateBinary();
-    sems[prd_1000Hz] = xSemaphoreCreateBinary();
+    if (mKHz) {
+        sems[prd_1000Hz] = xSemaphoreCreateBinary();
+    }
+
+#if (1 == configUSE_TRACE_FACILITY)
+    vTraceSetSemaphoreName(sems[prd_1Hz], "1Hz_Sem");
+    vTraceSetSemaphoreName(sems[prd_10Hz], "10Hz_Sem");
+    vTraceSetSemaphoreName(sems[prd_100Hz], "100Hz_Sem");
+    if (mKHz) {
+        vTraceSetSemaphoreName(sems[prd_1000Hz], "1000Hz_Sem");
+    }
+#endif
 
     // Create the FreeRTOS tasks, these will only run once we start giving their semaphores
     xTaskCreate(period_task_1Hz, "1Hz", PERIOD_TASKS_STACK_SIZE_BYTES/4, NULL, PRIORITY_CRITICAL + 1, NULL);
     xTaskCreate(period_task_10Hz, "10Hz", PERIOD_TASKS_STACK_SIZE_BYTES/4, NULL, PRIORITY_CRITICAL + 2, NULL);
     xTaskCreate(period_task_100Hz, "100Hz", PERIOD_TASKS_STACK_SIZE_BYTES/4, NULL, PRIORITY_CRITICAL + 3, NULL);
-    xTaskCreate(period_task_1000Hz, "1000Hz", PERIOD_TASKS_STACK_SIZE_BYTES/4, NULL, PRIORITY_CRITICAL + 4, NULL);
+    if (mKHz) {
+        xTaskCreate(period_task_1000Hz, "1000Hz", PERIOD_TASKS_STACK_SIZE_BYTES/4, NULL, PRIORITY_CRITICAL + 4, NULL);
+    }
 }
 
 bool periodicSchedulerTask::init(void)
@@ -78,8 +92,20 @@ bool periodicSchedulerTask::regTlm(void)
 
 bool periodicSchedulerTask::run(void *p)
 {
-    if (handlePeriodicSemaphore(prd_1000Hz, 1)) {           // Run 1000hz each time
-        if (handlePeriodicSemaphore(prd_100Hz, 10)) {       // Run 100Hz every 10th time of 1000Hz
+    // Run 1000hz each if the scheduling was enabled
+    if (mKHz) {
+        if (handlePeriodicSemaphore(prd_1000Hz, 1)) {
+            if (handlePeriodicSemaphore(prd_100Hz, 10)) {       // Run 100Hz every 10th time of 1000Hz
+                if (handlePeriodicSemaphore(prd_10Hz, 10)) {    // Run 10Hz every 10th time of 100Hz
+                    if (handlePeriodicSemaphore(prd_1Hz, 10)) { // Run 1Hz every 10th time of 10Hz
+                        ; // 1Hz task ran; nothing to do
+                    }
+                }
+            }
+        }
+    }
+    else {
+        if (handlePeriodicSemaphore(prd_100Hz, 1)) {        // Run 100Hz each time since we get unblocked at 10Hz
             if (handlePeriodicSemaphore(prd_10Hz, 10)) {    // Run 10Hz every 10th time of 100Hz
                 if (handlePeriodicSemaphore(prd_1Hz, 10)) { // Run 1Hz every 10th time of 10Hz
                     ; // 1Hz task ran; nothing to do
@@ -87,6 +113,8 @@ bool periodicSchedulerTask::run(void *p)
             }
         }
     }
+
+
 
     return true;
 }
@@ -97,7 +125,6 @@ bool periodicSchedulerTask::handlePeriodicSemaphore(const uint8_t index, const u
     SemaphoreHandle_t sem = sems[index];
     static uint8_t counters[prd_total] = { 0 };
     static const char * overrunMsg[] = { "1Hz task overrun", "10Hz task overrun", "100Hz task overrun", "1000Hz task overrun" };
-
 
     if (++counters[index] == frequency) {
         counters[index] = 0;

@@ -30,6 +30,7 @@ void vApplicationTickHook( void )
 {
 	// This function is called at every OS Tick
 	// DO NOT PUT A LOT OF CODE HERE.  KEEP IT SHORT AND SIMPLE (if you really need it)
+    #error "Are you sure you want to use this tick hook?"
 }
 #endif
 

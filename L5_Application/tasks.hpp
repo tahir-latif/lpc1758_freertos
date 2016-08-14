@@ -128,13 +128,14 @@ class wirelessTask : public scheduler_task
 class periodicSchedulerTask : public scheduler_task
 {
     public:
-        periodicSchedulerTask(void);
+        periodicSchedulerTask(bool kHz=0);
         bool init(void);
         bool regTlm(void);
         bool run(void *p);
 
     private:
         bool handlePeriodicSemaphore(const uint8_t index, const uint8_t frequency);
+        const uint8_t mKHz; // Periodic dispatcher should use 1Khz callback too
 };
 
 #endif /* TASKS_HPP_ */
