@@ -34,9 +34,8 @@ int ff_cre_syncobj (	/* TRUE:Function succeeded, FALSE:Could not create due to a
 	*sobj = xSemaphoreCreateMutex();			/* FreeRTOS */
 	ret = (*sobj != NULL) ? __true : __false;
 
-#if (1 == configUSE_TRACE_FACILITY)
+	// Optional: Provide names of the FreeRTOS objects for the Trace Facility
     vTraceSetMutexName(*sobj, "FATFS Mutex");
-#endif
 
 	return ret;
 }

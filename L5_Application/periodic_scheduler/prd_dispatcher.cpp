@@ -61,14 +61,13 @@ periodicSchedulerTask::periodicSchedulerTask(bool kHz_enabled) :
         sems[prd_1000Hz] = xSemaphoreCreateBinary();
     }
 
-#if (1 == configUSE_TRACE_FACILITY)
+    // Optional: Provide names of the FreeRTOS objects for the Trace Facility
     vTraceSetSemaphoreName(sems[prd_1Hz], "1Hz_Sem");
     vTraceSetSemaphoreName(sems[prd_10Hz], "10Hz_Sem");
     vTraceSetSemaphoreName(sems[prd_100Hz], "100Hz_Sem");
     if (mKHz) {
         vTraceSetSemaphoreName(sems[prd_1000Hz], "1000Hz_Sem");
     }
-#endif
 
     // Create the FreeRTOS tasks, these will only run once we start giving their semaphores
     xTaskCreate(period_task_1Hz, "1Hz", PERIOD_TASKS_STACK_SIZE_BYTES/4, NULL, PRIORITY_CRITICAL + 1, NULL);
@@ -113,8 +112,6 @@ bool periodicSchedulerTask::run(void *p)
             }
         }
     }
-
-
 
     return true;
 }

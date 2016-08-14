@@ -126,10 +126,9 @@ I2C_Base::I2C_Base(LPC_I2C_TypeDef* pI2CBaseAddr) :
     mI2CMutex = xSemaphoreCreateMutex();
     mTransferCompleteSignal = xSemaphoreCreateBinary();
 
-#if (1 == configUSE_TRACE_FACILITY)
+    // Optional: Provide names of the FreeRTOS objects for the Trace Facility
     vTraceSetMutexName(mI2CMutex, "I2C Mutex");
-    vTraceSetSemaphoreName(mTransferCompleteSignal, "I2C CmpleteSem");
-#endif
+    vTraceSetSemaphoreName(mTransferCompleteSignal, "I2C Finish Sem");
 
     if((unsigned int)mpI2CRegs == LPC_I2C0_BASE)
     {

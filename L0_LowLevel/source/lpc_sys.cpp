@@ -96,7 +96,7 @@ extern "C" void lpc_sys_setup_system_timer(void)
      * to drive the periodic ISR above other interrupts since we reset the watchdog timer.
      */
     NVIC_SetPriority(timer_irq, IP_high);
-    vTraceSetISRProperties(timer_irq, "TIMER", IP_high);
+    vTraceSetISRProperties(timer_irq, "AUX Timer", IP_high);
     NVIC_EnableIRQ(timer_irq);
 }
 

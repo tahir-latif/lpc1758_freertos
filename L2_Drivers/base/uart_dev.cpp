@@ -253,10 +253,9 @@ bool UartDev::init(unsigned int pclk, unsigned int baudRate,
     if (!mRxQueue) mRxQueue = xQueueCreate(rxQSize, sizeof(char));
     if (!mTxQueue) mTxQueue = xQueueCreate(txQSize, sizeof(char));
 
-#if (1 == configUSE_TRACE_FACILITY)
+    // Optional: Provide names of the FreeRTOS objects for the Trace Facility
     vTraceSetQueueName(mRxQueue, "UART RX-Q");
     vTraceSetQueueName(mTxQueue, "UART TX-Q");
-#endif
 
     // Enable Rx/Tx and line status Interrupts:
     mpUARTRegBase->IER = (1 << 0) | (1 << 1) | (1 << 2); // B0:Rx, B1: Tx

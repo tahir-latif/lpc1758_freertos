@@ -29,9 +29,8 @@ void spi1_lock(void)
 {
     if(!mSpi0Lock) {
         mSpi0Lock = xSemaphoreCreateMutex();
-        #if (1 == configUSE_TRACE_FACILITY)
-                vTraceSetMutexName(mSpi0Lock, "SPI-0 Mutex");
-        #endif
+        // Optional: Provide names of the FreeRTOS objects for the Trace Facility
+        vTraceSetMutexName(mSpi0Lock, "SPI-0 Mutex");
     }
 
 

@@ -73,11 +73,10 @@ void adc0_init()
     g_adc_mutex = xSemaphoreCreateMutex();
     g_adc_result_queue = xQueueCreate(1, sizeof(uint16_t));
 
-#if (1 == configUSE_TRACE_FACILITY)
-    vTraceSetMutexName(g_adc_mutex, "ADC Mutex");
+    // Optional: Provide names of the FreeRTOS objects for the Trace Facility
+    vTraceSetMutexName(g_adc_mutex,        "ADC Mutex");
     vTraceSetQueueName(g_adc_result_queue, "ADC RX-Q");
-    vTraceSetISRProperties(ADC_IRQn, "ADC", IP_adc);
-#endif
+    vTraceSetISRProperties(ADC_IRQn,       "ADC", IP_adc);
 
     NVIC_EnableIRQ(ADC_IRQn);
 }
