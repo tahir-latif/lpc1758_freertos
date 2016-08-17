@@ -229,6 +229,9 @@ bool scheduler_init_all(bool register_internal_tlm)
         printline("ERROR: Creating counting semaphore");
         failure = true;
     }
+    else {
+        vTraceSetSemaphoreName(gRunTaskSemaphore, "sch-cnt-sem");
+    }
 
     /* Initialize all tasks */
     dbg_print("*  Initializing tasks ...\n");
@@ -333,13 +336,8 @@ void scheduler_start(bool dp, bool register_internal_tlm)
     {
         dbg_print("*  Starting scheduler ...\n");
 
-        /* Since timer was already running, restart it such that the first
-         * task won't report incorrect CPU usage.
-         */
-        vTaskResetRunTimeStats();
-        vTaskStartScheduler();
-
         // vTaskStartScheduler() should not return
+        vTaskStartScheduler();
         printline("ERROR: Someone killed the scheduler");
     }
     else {

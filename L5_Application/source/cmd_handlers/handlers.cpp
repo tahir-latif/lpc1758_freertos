@@ -49,7 +49,8 @@
 
 CMD_HANDLER_FUNC(taskListHandler)
 {
-#if (1 == configUSE_TRACE_FACILITY)
+    // Note:  If there is a linker error and the FreeRTOS function is not included, just
+    // hack tasks.c at FreeRTOS source code and force include uxTaskGetSystemState()
     const int delayInMs = (int)cmdParams;  // cast parameter str to integer
 
     if(delayInMs > 0) {
@@ -99,9 +100,6 @@ CMD_HANDLER_FUNC(taskListHandler)
     if (uxTaskGetNumberOfTasks() > maxTasks) {
         output.printf("** WARNING: Only reported first %u tasks\n", maxTasks);
     }
-#else
-    output.printf("OOPS, I can't do this for you.  Please set configUSE_TRACE_FACILITY to 1 at FreeRTOSConfig.h\n");
-#endif
 
     return true;
 }

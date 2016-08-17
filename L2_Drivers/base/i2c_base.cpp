@@ -126,8 +126,9 @@ I2C_Base::I2C_Base(LPC_I2C_TypeDef* pI2CBaseAddr) :
     mI2CMutex = xSemaphoreCreateMutex();
     mTransferCompleteSignal = xSemaphoreCreateBinary();
 
-    /// Binary semaphore needs to be taken after creating it
-    xSemaphoreTake(mTransferCompleteSignal, 0);
+    // Optional: Provide names of the FreeRTOS objects for the Trace Facility
+    vTraceSetMutexName(mI2CMutex, "I2C Mutex");
+    vTraceSetSemaphoreName(mTransferCompleteSignal, "I2C Finish Sem");
 
     if((unsigned int)mpI2CRegs == LPC_I2C0_BASE)
     {
@@ -182,6 +183,7 @@ bool I2C_Base::init(uint32_t pclk, uint32_t busRateInKhz)
 
     // Enable I2C and the interrupt for it
     mpI2CRegs->I2CONSET = 0x40;
+    vTraceSetISRProperties(mIRQ, "I2C", IP_i2c);
     NVIC_EnableIRQ(mIRQ);
 
     return true;

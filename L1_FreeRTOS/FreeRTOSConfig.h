@@ -87,7 +87,7 @@
 #define PRIORITY_LOW        1
 #define PRIORITY_MEDIUM     2
 #define PRIORITY_HIGH       3
-// Critical priority is the highest priority before the periodic scheduler priorites start
+// Critical priority is the highest priority before the periodic scheduler priorities start
 #define PRIORITY_CRITICAL 	(configMAX_PRIORITIES - PERIODIC_SCH_PRIORITIES - 1)
 
 
@@ -126,21 +126,9 @@
 
 /* Run time and task stats gathering related definitions. */
 #define configGENERATE_RUN_TIME_STATS           1       ///< CPU usage utilities
-#define configUSE_TRACE_FACILITY                1       ///< uxTaskGetSystemState()
+#define configUSE_TRACE_FACILITY                0       ///< FreeRTOS + Percepio Tracealyzer trace facility
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0       ///< Older FreeRTOS functions
-
-/* If trace facility is enabled, also track the last running task.
- * We do this by copying the name of the last task that got switched in
- * to an auxiliary memory location.
- */
-#if (1 == configUSE_TRACE_FACILITY)
-#include "fault_registers.h"
-#define traceTASK_SWITCHED_IN()                                                 \
-            do {                                                                \
-                uint32_t *pTaskName = (uint32_t*)(pxCurrentTCB->pcTaskName);    \
-                FAULT_LAST_RUNNING_TASK_NAME = *pTaskName;                      \
-            } while (0)
-#endif
+#define INCLUDE_eTaskGetState                   1       ///< Was needed by the "info" command-line handler
 
 
 /* Features config */
@@ -150,27 +138,23 @@
 #define configUSE_QUEUE_SETS                1
 #define INCLUDE_vTaskPrioritySet			0
 #define INCLUDE_uxTaskPriorityGet			0
-#define INCLUDE_vTaskDelete					0
-#define INCLUDE_vTaskCleanUpResources		0
+#define INCLUDE_vTaskDelete					0   ///< A task should never be deleted in an RTOS (why create it only to delete it later?)
+#define INCLUDE_vTaskCleanUpResources		0   ///< Ditto ^^
 #define INCLUDE_vTaskSuspend				1
 #define INCLUDE_vTaskDelayUntil				1
 #define INCLUDE_vTaskDelay					1
 #define INCLUDE_uxTaskGetStackHighWaterMark	1
 #define INCLUDE_xTaskGetSchedulerState      1
 #define INCLUDE_xTaskGetIdleTaskHandle      1
-#define INCLUDE_xTimerPendFunctionCall      0   ///< Uses timer daemon task, so needs configUSE_TIMERS to 1
 
 /* FreeRTOS Timer or daemon task configuration */
-#define configUSE_TIMERS                0
-#define configTIMER_TASK_PRIORITY       PRIORITY_HIGH
-#define configTIMER_QUEUE_LENGTH        10
-#define configTIMER_TASK_STACK_DEPTH    STACK_BYTES(2048)
+#define configUSE_TIMERS                0                   ///< Enable or disable the FreeRTOS timer task
+#define configTIMER_TASK_PRIORITY       PRIORITY_HIGH       ///< Priority at which the timer task should run (use highest)
+#define configTIMER_QUEUE_LENGTH        10                  ///< See FreeRTOS documentation
+#define configTIMER_TASK_STACK_DEPTH    STACK_BYTES(2048)   ///< Stack size for the timer task
+#define INCLUDE_xTimerPendFunctionCall  0                   ///< Uses timer daemon task, so needs configUSE_TIMERS to 1
 
 
-
-
-/* ARM Cortex M3 has hardware instruction to count leading zeroes */
-#define configUSE_PORT_OPTIMISED_TASK_SELECTION    1
 
 /* Use the system definition, if there is one */
 #ifdef __NVIC_PRIO_BITS
@@ -184,24 +168,50 @@
 #define configKERNEL_INTERRUPT_PRIORITY 	    ( IP_KERNEL <<   (8 - configPRIO_BITS) )
 /* Priority 5, or 160 as only the top three bits are implemented. */
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY 	( IP_SYSCALL <<  (8 - configPRIO_BITS) )
+/* ARM Cortex M3 has hardware instruction to count leading zeroes */
+#define configUSE_PORT_OPTIMISED_TASK_SELECTION    1
 
 
-/*-----------------------------------------------------------
- * Macros required to setup the timer for the run time stats.
- *-----------------------------------------------------------*/
-#ifdef __cplusplus
-extern "C" {
-#endif
-    void vConfigureTimerForRunTimeStats( void );
-    unsigned int uxGetTimerForRunTimeStats();
-    void resetRunTimeCounter();
-#ifdef __cplusplus
-}
-#endif
 
-#define portGET_RUN_TIME_COUNTER_VALUE() 			uxGetTimerForRunTimeStats()
-#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()	vConfigureTimerForRunTimeStats()
-#define portRESET_TIMER_FOR_RUN_TIME_STATS()        resetRunTimeCounter()
+#if (0 == configUSE_TRACE_FACILITY)
+    /*
+    * If trace facility is enabled, also track the last running task.
+    * We do this by copying the name of the last task that got switched in
+    * to an auxiliary memory location.
+    *
+    * Poor man's trace just records the last task that was running before a potential system crash ;(
+    */
+    #include "fault_registers.h"
+    #define traceTASK_SWITCHED_IN()                                                  \
+                 do {                                                                \
+                     uint32_t *pTaskName = (uint32_t*)(pxCurrentTCB->pcTaskName);    \
+                     FAULT_LAST_RUNNING_TASK_NAME = *pTaskName;                      \
+                 } while (0)
 
+    #ifdef __cplusplus
+    extern "C" {
+    #endif
+        void rts_not_full_trace_init( void );
+        unsigned int rts_not_full_trace_get();
+        void rts_not_full_trace_reset();
+    #ifdef __cplusplus
+    }
+    #endif
+
+    #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()    rts_not_full_trace_init()
+    #define portGET_RUN_TIME_COUNTER_VALUE()            rts_not_full_trace_get()
+    #define portRESET_TIMER_FOR_RUN_TIME_STATS()        rts_not_full_trace_reset()
+
+    // Stub out macros for the trace facility to avoid conditional compilation everywhere
+    #include "trace/trcUser.h"
+
+// The real trace facility
+#else
+    unsigned trace_get_run_time_counter(void);
+    #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()    /* Sys tick is initted by vPortSetupTimerInterrupt() */
+    #define portGET_RUN_TIME_COUNTER_VALUE()            trace_get_run_time_counter()
+    #define portRESET_TIMER_FOR_RUN_TIME_STATS()        /* Resetting not supported */
+    #include "trace/trcKernelPort.h"                    /* Must be included last */
+#endif  /* (1 == configUSE_TRACE_FACILITY) */
 
 #endif /* FREERTOS_CONFIG_H */

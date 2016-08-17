@@ -29,7 +29,11 @@ void spi1_lock(void)
 {
     if(!mSpi0Lock) {
         mSpi0Lock = xSemaphoreCreateMutex();
+        // Optional: Provide names of the FreeRTOS objects for the Trace Facility
+        vTraceSetMutexName(mSpi0Lock, "SPI-0 Mutex");
     }
+
+
     if (taskSCHEDULER_RUNNING == xTaskGetSchedulerState()) {
         xSemaphoreTake(mSpi0Lock, portMAX_DELAY);
     }

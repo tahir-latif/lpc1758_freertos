@@ -402,6 +402,7 @@ bool CAN_init(can_t can, uint32_t baudrate_kbps, uint16_t rxq_size, uint16_t txq
         }
 
         /* Finally, enable the actual CPU core interrupt */
+        vTraceSetISRProperties(CAN_IRQn, "CAN", IP_can);
         NVIC_EnableIRQ(CAN_IRQn);
     }
 

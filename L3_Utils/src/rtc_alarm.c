@@ -40,6 +40,7 @@ static c_list_ptr g_list_recur_alarms[4] = { 0 }; ///< Recurring alarms, such as
 static void rtc_enable_intr(void)
 {
     LPC_RTC->CIIR |= (1 << 0);
+    vTraceSetISRProperties(RTC_IRQn, "RTC", IP_rtc);
     NVIC_EnableIRQ(RTC_IRQn);
 }
 

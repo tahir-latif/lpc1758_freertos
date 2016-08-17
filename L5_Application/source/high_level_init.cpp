@@ -95,6 +95,7 @@ void high_level_init(void)
     adc0_init();
     ssp1_init();
     ssp0_init(SYS_CFG_SPI0_CLK_MHZ);
+
     if (!I2C2::getInstance().init(SYS_CFG_I2C2_CLK_KHZ)) {
         puts("ERROR: Possible short on SDA or SCL wire (I2C2)!");
     }

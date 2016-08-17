@@ -359,6 +359,7 @@ static void isr_forwarder_routine(void)
      * We can read ICSR register too, but let's just read 8-bits directly.
      */
     const unsigned char isr_num = (*((unsigned char*) 0xE000ED04)) - 16; // (SCB->ICSR & 0xFF) - 16;
+    vTraceStoreISRBegin(isr_num);
 
     /* Lookup the function pointer we want to call and make the call */
     isr_func_t isr_to_service = g_isr_array[isr_num];
@@ -375,6 +376,7 @@ static void isr_forwarder_routine(void)
     {
         isr_to_service();
     }
+    vTraceStoreISREnd(0);
 
     /* Inform FreeRTOS that we have exited the ISR */
     vRunTimeStatIsrExit();

@@ -75,6 +75,8 @@ void period_100Hz(void)
     LE.toggle(3);
 }
 
+// 1Khz (1ms) is only run if Periodic Dispatcher was configured to run it at main():
+// scheduler_add_task(new periodicSchedulerTask(run_1Khz = true));
 void period_1000Hz(void)
 {
     LE.toggle(4);

@@ -40,6 +40,7 @@ bool remoteTask::init(void)
 {
     setRunDuration(100);
     mLearnSem = xSemaphoreCreateBinary();
+    vTraceSetSemaphoreName(mLearnSem, "IR-snsr Sem");
 
     /**
      * For success: Created semaphore must not be NULL, we must be able to

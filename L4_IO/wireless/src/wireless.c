@@ -153,6 +153,11 @@ static int nrf_driver_init(void* p, int len)
         g_nrf_activity_sem = xSemaphoreCreateBinary();
     }
 
+    // Optional: Provide names of the FreeRTOS objects for the Trace Facility
+    vTraceSetSemaphoreName(g_nrf_activity_sem, "NRF Act Sem");
+    vTraceSetQueueName(g_rx_queue,  "NRF RX-Q");
+    vTraceSetQueueName(g_ack_queue, "NRF ACK-Q");
+
     nordic_init(MESH_PAYLOAD, WIRELESS_CHANNEL_NUM, WIRELESS_AIR_DATARATE_KBPS);
     nordic_standby1_to_rx();
 

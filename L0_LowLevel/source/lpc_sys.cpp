@@ -95,8 +95,9 @@ extern "C" void lpc_sys_setup_system_timer(void)
     /* Enable the interrupt and use higher priority than other peripherals because we want
      * to drive the periodic ISR above other interrupts since we reset the watchdog timer.
      */
-    NVIC_EnableIRQ(timer_irq);
     NVIC_SetPriority(timer_irq, IP_high);
+    vTraceSetISRProperties(timer_irq, "AUX Timer", IP_high);
+    NVIC_EnableIRQ(timer_irq);
 }
 
 extern "C" uint64_t sys_get_uptime_us(void)

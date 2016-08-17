@@ -63,7 +63,7 @@ static void configure_interrupt_priorities()
     NVIC_SetPriority(DebugMonitor_IRQn,     IP_above_freertos);
 
 #if 0
-    /* XXX What priority should the SVCall be set to?
+    /* XXX What priority should the SVCall be set to?  <-- Obsolete comment...
      * Logger task running at IDLE priority runs into issues and it is likely related to this.
      */
     NVIC_SetPriority(SVCall_IRQn,           0);
@@ -160,8 +160,20 @@ static void print_boot_info(void)
  * Initializes the minimal system including CPU Clock, UART, and Flash accelerator
  * Be careful of the order of the operations!!!
  */
+#include "FreeRTOS.h"
 void low_level_init(void)
 {
+    // We must initialize the trace before using any FreeRTOS API or malloc from FreeRTOS
+    #if (configUSE_TRACE_FACILITY)
+        // Initialize the trace
+        vTraceInitTraceData();
+
+        // The trace should be started by the application otherwise it will collect a lot of
+        // logs all the way up until the RTOS starts
+        // I tried starting it early but it didn't work :(
+        // uiTraceStart();
+    #endif
+
     rtc_init();
     g_rtc_boot_time = rtc_gettime();
 

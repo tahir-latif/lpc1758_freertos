@@ -284,6 +284,9 @@ static bool logger_internal_init(UBaseType_t logger_priority)
         goto failure;
     }
 
+    vTraceSetQueueName(g_write_buffer_queue, "Logger WR-Q");
+    vTraceSetQueueName(g_empty_buffer_queue, "Logger EP-Q");
+
     /* Create the actual buffers for log messages */
     for (i = 0; i < FILE_LOGGER_NUM_BUFFERS; i++)
     {

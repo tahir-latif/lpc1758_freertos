@@ -145,6 +145,7 @@ int CharDev::scanf(const char *format, ...)
 CharDev::CharDev() : mpPrintfMem(NULL), mPrintfMemSize(0), mReady(false)
 {
     mPrintfSemaphore = xSemaphoreCreateMutex();
+    vTraceSetMutexName(mPrintfSemaphore, "printf sem");
 }
 
 CharDev::~CharDev()

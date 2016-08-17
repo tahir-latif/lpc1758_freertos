@@ -16,6 +16,8 @@
  *          p r e e t . w i k i @ g m a i l . c o m
  */
 #include "lpc_rit.h"
+#include "lpc_isr.h"
+#include "FreeRTOS.h"
 
 
 
@@ -59,6 +61,7 @@ void rit_enable(void_func_t function, uint32_t time_ms)
 
     // Enable System Interrupt and connect the callback
     g_rit_callback = function;
+    vTraceSetISRProperties(RIT_IRQn, "RIT", IP_RIT);
     NVIC_EnableIRQ(RIT_IRQn);
 }
 

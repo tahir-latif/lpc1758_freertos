@@ -212,6 +212,7 @@ bool UartDev::init(unsigned int pclk, unsigned int baudRate,
     if (LPC_UART0_BASE == (unsigned int) mpUARTRegBase)
     {
         lpc_pconp(pconp_uart0, true);
+        vTraceSetISRProperties(UART0_IRQn, "U0", IP_uart);
         NVIC_EnableIRQ(UART0_IRQn);
     }
     /*
@@ -224,11 +225,13 @@ bool UartDev::init(unsigned int pclk, unsigned int baudRate,
     else if (LPC_UART2_BASE == (unsigned int) mpUARTRegBase)
     {
         lpc_pconp(pconp_uart2, true);
+        vTraceSetISRProperties(UART2_IRQn, "U2", IP_uart);
         NVIC_EnableIRQ(UART2_IRQn);
     }
     else if (LPC_UART3_BASE == (unsigned int) mpUARTRegBase)
     {
         lpc_pconp(pconp_uart3, true);
+        vTraceSetISRProperties(UART3_IRQn, "U3", IP_uart);
         NVIC_EnableIRQ(UART3_IRQn);
     }
     else
@@ -249,6 +252,10 @@ bool UartDev::init(unsigned int pclk, unsigned int baudRate,
     // Create the receive and transmit queues
     if (!mRxQueue) mRxQueue = xQueueCreate(rxQSize, sizeof(char));
     if (!mTxQueue) mTxQueue = xQueueCreate(txQSize, sizeof(char));
+
+    // Optional: Provide names of the FreeRTOS objects for the Trace Facility
+    vTraceSetQueueName(mRxQueue, "UART RX-Q");
+    vTraceSetQueueName(mTxQueue, "UART TX-Q");
 
     // Enable Rx/Tx and line status Interrupts:
     mpUARTRegBase->IER = (1 << 0) | (1 << 1) | (1 << 2); // B0:Rx, B1: Tx
