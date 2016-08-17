@@ -39,10 +39,13 @@ BO_ 100 DRIVER_HEARTBEAT: 1 DRIVER
  SG_ DRIVER_HEARTBEAT_cmd : 0|8@1+ (1,0) [0|0] "" SENSOR,MOTOR
 
 BO_ 500 IO_DEBUG: 4 IO
- SG_ IO_DEBUG_test_unsigned : 0|8@1+ (1,0) [0|0] "" DBG
- SG_ IO_DEBUG_test_enum : 8|8@1+ (1,0) [0|0] "" DBG
- SG_ IO_DEBUG_test_signed : 16|8@1- (1,0) [0|0] "" DBG
- SG_ IO_DEBUG_test_float : 24|8@1+ (0.5,0) [0|0] "" DBG
+ SG_ IO_DEBUG_test_unsigned1 : 0|8@1+ (1,0) [0|0] "" DBG
+ SG_ IO_DEBUG_test_unsigned_minmax : 8|8@1+ (1,0) [0|100] "" DBG
+ SG_ IO_DEBUG_test_signed : 16|8@1+ (1,-128) [0|0] "" DBG
+ SG_ IO_DEBUG_test_signed_minmax : 24|8@1+ (1,-128) [0|0] "" DBG
+ SG_ IO_DEBUG_test_enum : 32|8@1+ (1,0) [0|0] "" DBG
+ SG_ IO_DEBUG_test_float : 40|8@1+ (0.5,0) [0|0] "" DBG
+ SG_ IO_DEBUG_test_float_signed : 48|16@1+ (0.1,-3276) [-3276|3276] "" DBG
 
 BO_ 101 MOTOR_CMD: 1 DRIVER
  SG_ MOTOR_CMD_steer : 0|4@1- (1,-5) [-5|5] "" MOTOR

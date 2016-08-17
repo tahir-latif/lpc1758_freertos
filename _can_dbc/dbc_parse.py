@@ -2,6 +2,7 @@
 
 import sys, getopt
 import re
+from collections import OrderedDict
 
 """
 @Author: Preet
@@ -20,7 +21,6 @@ def is_empty(s):
         return False
     else:
         return True
-
 
 class Signal(object):
     def __init__(self, name, bit_start, bit_size, is_unsigned, scale, offset, min_val, max_val, recipients, mux):
@@ -76,7 +76,8 @@ class Signal(object):
             elif _max <= 65536:
                 t = "uint16_t"
 
-            if not self.is_unsigned:
+            # If the signal is signed, or the offset is negative, remove "u" to use "int" type.
+            if not self.is_unsigned or self.offset < 0:
                 t = t[1:]
 
             return t
@@ -221,7 +222,7 @@ class Message(object):
         self.name = name
         self.dlc = dlc
         self.sender = sender
-        self.signals = {}
+        self.signals = OrderedDict()
 
     # Adds the signal to the dictionary of signals of this message
     def add_signal(self, s):
@@ -326,15 +327,32 @@ class Message(object):
 
         return code
 
+    def get_encode_and_send(self, name):
+        code = ''
+        code += ("\n/// Encode and send for dbc_encode_" + name + "() message\n")
+        code += ("static inline bool dbc_encode_and_send_" + name + "(" + name + "_t *from)\n")
+        code += "{\n"
+        code += ("    uint8_t bytes[8];\n")
+        code += ("    const dbc_msg_hdr_t hdr = dbc_encode_" + name + "(bytes, from);\n")
+        code += ("    return dbc_app_send_can_msg(hdr.mid, hdr.dlc, bytes);\n")
+        code += "}\n"
+        code += "\n"
+        return code
+
     def get_encode_code(self):
         code = ''
         if self.contains_muxed_signals():
             muxes = self.get_muxes()
-            for mux in muxes[1:]:
+            for mux in muxes:
+                if "M" == mux:
+                    continue
+
+                name = self.get_struct_name()
+                name_with_mux = name[:-2] + "_" + str(mux)
                 code += ("\n/// Encode " + self.sender + "'s '" + self.name + "' MUX(" + str(mux) + ") message\n")
                 code += ("/// @returns the message header of this message\n")
-                code += ("static dbc_msg_hdr_t dbc_encode_" + self.get_struct_name()[:-2] + "_" + str(mux))
-                code += ("(uint8_t bytes[8], " + self.get_struct_name()[:-2] + "_" + str(mux) + "_t *from)\n")
+                code += ("static inline dbc_msg_hdr_t dbc_encode_" + name_with_mux)
+                code += ("(uint8_t bytes[8], " + name_with_mux + "_t *from)\n")
                 code += ("{\n")
                 code += ("    uint32_t raw;\n")
                 code += ("    bytes[0]=bytes[1]=bytes[2]=bytes[3]=bytes[4]=bytes[5]=bytes[6]=bytes[7]=0;\n\n")
@@ -357,13 +375,17 @@ class Message(object):
                         code += self.signals[key].get_encode_code("raw", "from->" + key)
 
                 code += ("\n")
-                code += ("    return " + self.get_struct_name()[:-2] + "_HDR;\n")
+                code += ("    return " + name[:-2] + "_HDR;\n")
                 code += ("}\n")
+
+                # Encode and send function
+                code += self.get_encode_and_send(name_with_mux)
+
         else:
+            name = self.get_struct_name()
             code += ("\n/// Encode " + self.sender + "'s '" + self.name + "' message\n")
             code += ("/// @returns the message header of this message\n")
-            code += ("static dbc_msg_hdr_t dbc_encode_" + self.get_struct_name()[
-                                                      :-2] + "(uint8_t bytes[8], " + self.get_struct_name() + " *from)\n")
+            code += ("static inline dbc_msg_hdr_t dbc_encode_" + name[:-2] + "(uint8_t bytes[8], " + name + " *from)\n")
             code += ("{\n")
             code += ("    uint32_t raw;\n")
             code += ("    bytes[0]=bytes[1]=bytes[2]=bytes[3]=bytes[4]=bytes[5]=bytes[6]=bytes[7]=0;\n")
@@ -374,6 +396,9 @@ class Message(object):
 
             code += ("    return " + self.get_struct_name()[:-2] + "_HDR;\n")
             code += ("}\n")
+
+            # Encode and send function
+            code += self.get_encode_and_send(name[:-2])
 
         return code
 
@@ -455,7 +480,7 @@ class DBC(object):
         self.gen_all = gen_all
 
         # Dictionary of messages with the MSG-ID as the key
-        self.messages = {}
+        self.messages = OrderedDict()
         self.nodes = []
 
     def gen_file_header(self):
@@ -569,7 +594,7 @@ class DBC(object):
 def main(argv):
     dbcfile = '243.dbc'  # Default value unless overriden
     self_node = 'DRIVER'  # Default value unless overriden
-    gen_all = False
+    gen_all = True
 
     try:
         opts, args = getopt.getopt(argv, "i:s:a", ["ifile=", "self=", "all"])
@@ -615,7 +640,7 @@ def main(argv):
             dbc.messages[msg_id] = Message(msg_id, msg_name, tokens[3], tokens[4].strip("\n"))
             last_mid = msg_id
 
-        # Signals
+        # Signals: SG_ IO_DEBUG_test_signed : 16|8@1+ (1,-128) [0|0] "" DBG
         if line.startswith(" SG_ "):
             t = line[1:].split(' ')
 
@@ -679,6 +704,11 @@ def main(argv):
 
     print(dbc.gen_file_header())
     print("\n")
+
+    # Generate the application send extern function
+    print("/// Extern function needed for dbc_encode_and_send()")
+    print("extern bool dbc_app_send_can_msg(uint32_t mid, uint8_t dlc, uint8_t bytes[8]);")
+    print("")
 
     # Generate header structs and MIA struct
     print(dbc.gen_mia_struct())
