@@ -22,13 +22,21 @@ def is_empty(s):
     else:
         return True
 
+
+def MIN(x, y):
+    if (x < y):
+        return x
+    else:
+        return y
+
+
 class Signal(object):
-    def __init__(self, name, bit_start, bit_size, is_unsigned, scale, offset, min_val, max_val, recipients, mux):
+    def __init__(self, name, bit_start, bit_size, endian_and_sign, scale, offset, min_val, max_val, recipients, mux):
         self.has_field_type = False
         self.name = name
         self.bit_start = int(bit_start)
         self.bit_size = int(bit_size)
-        self.is_unsigned = is_unsigned
+        self.endian_and_sign = endian_and_sign
 
         self.offset = float(offset)
         self.offset_str = offset
@@ -58,6 +66,10 @@ class Signal(object):
         t = self.get_code_var_type()
         return t.find("uint") == 0
 
+    # Returns true if the signal is defined in the DBC as a signed type
+    def is_real_signed(self):
+        return '-' == self.endian_and_sign[1]
+
     # Returns the variable type (float, int, or enum) based ont he signal data range
     def get_code_var_type(self):
         if '.' in self.scale_str:
@@ -67,7 +79,7 @@ class Signal(object):
                 return self.name + "_E"
 
             _max = (2 ** self.bit_size) * self.scale
-            if not self.is_unsigned:
+            if self.is_real_signed():
                 _max *= 2
 
             t = "uint32_t"
@@ -77,7 +89,7 @@ class Signal(object):
                 t = "uint16_t"
 
             # If the signal is signed, or the offset is negative, remove "u" to use "int" type.
-            if not self.is_unsigned or self.offset < 0:
+            if self.is_real_signed() or self.offset < 0:
                 t = t[1:]
 
             return t
@@ -123,10 +135,16 @@ class Signal(object):
                 code += "    // Not doing min value check since the signal is unsigned already\n"
             code += ("    if(" + var_name + " > " + self.max_val_str + ") { " + var_name + " = " + self.max_val_str + "; } // Max value: " + self.max_val_str + "\n")
 
-        # Compute binary value (both little and big endian)
+        # Compute binary value
         # Encode should subtract offset then divide
         # TODO: Might have to add -0.5 for a negative signal
-        s = (raw_sig_name + " = ((uint32_t)(((" + var_name + " - (" + self.offset_str + ")) / " + str(self.scale) + ") + 0.5))")
+        raw_sig_code = "    " + raw_sig_name + " = "
+        raw_sig_code += "((uint32_t)(((" + var_name + " - (" + self.offset_str + ")) / " + str(self.scale) + ") + 0.5))"
+        if self.is_real_signed():
+            s = "    // Stuff a real signed number into the DBC " + str(self.bit_size) + "-bit signal\n"
+            s += raw_sig_code + (" & 0x" + format(2 ** self.bit_size - 1, '02x') + ";\n")
+        else:
+            s = raw_sig_code + (" & 0x" + format(2 ** self.bit_size - 1, '02x') + ";\n")
 
         # Optimize
         s = s.replace(" - (0)", "")
@@ -134,26 +152,27 @@ class Signal(object):
         if self.scale == 1:
             s = s.replace(" + 0.5", "")
 
-        code += ("    " + s)
-        code += (" & 0x" + format(2 ** self.bit_size - 1, '02x') + ";\n")
+        # Add the code
+        code += s
 
+        # Stuff the raw data into individual bytes
         bit_pos = self.bit_start
         remaining = self.bit_size
         byte_num = int(self.bit_start / 8)
         while remaining > 0:
-            if remaining > 8:
-                bits_in_this_byte = 8 - (bit_pos % 8)
-            else:
-                bits_in_this_byte = remaining
+            bits_in_this_byte = MIN(8 - (bit_pos % 8), remaining)
 
             s = ""
             s += ("    bytes[" + str(byte_num) + "] |= (((uint8_t)(" + raw_sig_name + " >> " + str(
                 bit_pos - self.bit_start) + ")")
             s += (" & 0x" + format(2 ** bits_in_this_byte - 1, '02x') + ") << " + str(bit_pos % 8) + ")")
             s += ("; ///< " + str(bits_in_this_byte) + " bit(s) starting from B" + str(bit_pos) + "\n")
+
             # Optimize
             s = s.replace(" >> 0", "")
             s = s.replace(" << 0", "")
+            # Cannot optimize by removing 0xff just for code safety
+            #s = s.replace(" & 0xff", "")
 
             code += s
             byte_num += 1
@@ -172,10 +191,7 @@ class Signal(object):
         code = ''
 
         while remaining > 0:
-            if remaining > 8:
-                bits_in_this_byte = 8 - (bit_pos % 8)
-            else:
-                bits_in_this_byte = remaining
+            bits_in_this_byte = MIN(8 - (bit_pos % 8), remaining)
 
             s = ""
             s += (
@@ -186,8 +202,9 @@ class Signal(object):
             # Optimize
             s = s.replace(" >> 0", "")
             s = s.replace(" << 0", "")
-            code += s
+            s = s.replace(" & 0xff", "")
 
+            code += s
             if bit_count == 0:
                 code = code.replace("|=", " =")
 
@@ -201,8 +218,19 @@ class Signal(object):
         if self.is_enum_type():
             enum_cast = "(" + self.get_code_var_type() + ")"
 
-        s = (prefix + self.name + " = " + enum_cast + "((" + raw_sig_name + " * " + str(
-            self.scale) + ") + (" + self.offset_str + "));\n")
+        # If the signal is not defined as a signed, then we will use this code
+        unsigned_code = (prefix + self.name + " = " + enum_cast + "((" + raw_sig_name + " * " + str(self.scale) + ") + (" + self.offset_str + "));\n")
+
+        if self.is_real_signed():
+            mask = "(1 << " + str(self.bit_size - 1) + ")"
+            s = LINE_BEG + "if (" + raw_sig_name + " & " + mask + ") { // Check signed bit\n"
+            s += LINE_BEG + prefix + self.name + " = " + enum_cast
+            s += "((((0xFFFFFFFF << " + str(self.bit_size - 1) + ") | " + raw_sig_name + ") * " + str(self.scale) + ") + (" + self.offset_str + "));\n"
+            s += LINE_BEG + "} " + "else {\n"
+            s += LINE_BEG + unsigned_code
+            s += LINE_BEG + "}\n"
+        else:
+            s = unsigned_code
 
         # Optimize
         s = s.replace(" + (0)", "")
@@ -485,7 +513,7 @@ class DBC(object):
 
     def gen_file_header(self):
         code = ''
-        code += ("/// DBC file: %s    Self node: '%s'\n" % (self.name, self.self_node))
+        code += ("/// DBC file: %s    Self node: '%s'  (ALL = %u)\n" % (self.name, self.self_node, self.gen_all))
         code += ("/// This file can be included by a source file, for example: #include \"generated.h\"\n")
         code += ("#ifndef __GENEARTED_DBC_PARSER\n")
         code += ("#define __GENERATED_DBC_PARSER\n")
@@ -594,7 +622,7 @@ class DBC(object):
 def main(argv):
     dbcfile = '243.dbc'  # Default value unless overriden
     self_node = 'DRIVER'  # Default value unless overriden
-    gen_all = True
+    gen_all = False
 
     try:
         opts, args = getopt.getopt(argv, "i:s:a", ["ifile=", "self=", "all"])
@@ -655,7 +683,7 @@ def main(argv):
             s = re.split('[|@]', t[3])
             bit_start = s[0]
             bit_size = s[1]
-            is_unsigned = '+' in s[2]
+            endian_and_sign = s[2]
 
             # Split (0.1,1) to two tokens by removing the ( and the )
             s = t[4][1:-1].split(',')
@@ -670,7 +698,7 @@ def main(argv):
             recipients = t[7].strip('\n').split(',')
 
             # Add the signal the last message object
-            sig = Signal(t[1], bit_start, bit_size, is_unsigned, scale, offset, min_val, max_val, recipients, mux)
+            sig = Signal(t[1], bit_start, bit_size, endian_and_sign, scale, offset, min_val, max_val, recipients, mux)
             dbc.messages[last_mid].add_signal(sig)
 
         # Parse the "FieldType" which is the trigger to use enumeration type for certain signals
@@ -700,7 +728,6 @@ def main(argv):
                 if enum_name in dbc.messages[sig_mid].signals:
                     if dbc.messages[sig_mid].signals[enum_name].has_field_type:
                         dbc.messages[sig_mid].signals[enum_name].enum_info = pairs
-                        added = True
 
     print(dbc.gen_file_header())
     print("\n")

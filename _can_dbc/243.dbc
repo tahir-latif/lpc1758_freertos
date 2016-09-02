@@ -35,20 +35,28 @@ BS_:
 BU_: DBG DRIVER IO MOTOR SENSOR
 
 
+BO_ 500 DBC_TEST1: 8 IO
+ SG_ DBC_TEST1_unsigned1 : 0|8@1+ (1,0) [0|0] "" DBG
+ SG_ DBC_TEST1_unsigned_minmax : 8|8@1+ (1,0) [0|100] "" DBG
+ SG_ DBC_TEST1_enum : 32|8@1+ (1,0) [0|0] "" DBG
+ SG_ DBC_TEST1_float : 40|8@1+ (0.5,0) [0|0] "" DBG
+ SG_ DBC_TEST1_float_signed : 48|16@1+ (0.1,-3276) [-3276|3276] "" DBG
+
+BO_ 501 DBC_TEST2: 8 IO
+ SG_ DBC_TEST2_real_signed1 : 6|12@1- (1,0) [0|0] "" DBG
+ SG_ DBC_TEST2_real_signed2 : 18|18@1- (1,0) [0|0] "" DBG
+ SG_ DBC_TEST2_signed : 36|8@1+ (1,-128) [0|0] "" DBG
+ SG_ DBC_TEST2_signed_minmax : 44|16@1+ (1,-32768) [-32768|32767] "" DBG
+
+BO_ 502 DBC_TEST3: 8 IO
+ SG_ DBC_TEST3_real_signed1 : 2|4@1- (1,-5) [0|0] "" DBG
+ SG_ DBC_TEST3_real_signed2 : 8|8@1- (1,4) [0|0] "" DBG
+
 BO_ 100 DRIVER_HEARTBEAT: 1 DRIVER
  SG_ DRIVER_HEARTBEAT_cmd : 0|8@1+ (1,0) [0|0] "" SENSOR,MOTOR
 
-BO_ 500 IO_DEBUG: 4 IO
- SG_ IO_DEBUG_test_unsigned1 : 0|8@1+ (1,0) [0|0] "" DBG
- SG_ IO_DEBUG_test_unsigned_minmax : 8|8@1+ (1,0) [0|100] "" DBG
- SG_ IO_DEBUG_test_signed : 16|8@1+ (1,-128) [0|0] "" DBG
- SG_ IO_DEBUG_test_signed_minmax : 24|8@1+ (1,-128) [0|0] "" DBG
- SG_ IO_DEBUG_test_enum : 32|8@1+ (1,0) [0|0] "" DBG
- SG_ IO_DEBUG_test_float : 40|8@1+ (0.5,0) [0|0] "" DBG
- SG_ IO_DEBUG_test_float_signed : 48|16@1+ (0.1,-3276) [-3276|3276] "" DBG
-
 BO_ 101 MOTOR_CMD: 1 DRIVER
- SG_ MOTOR_CMD_steer : 0|4@1- (1,-5) [-5|5] "" MOTOR
+ SG_ MOTOR_CMD_steer : 0|4@1+ (1,-5) [-5|5] "" MOTOR
  SG_ MOTOR_CMD_drive : 4|4@1+ (1,0) [0|9] "" MOTOR
 
 BO_ 400 MOTOR_STATUS: 3 MOTOR
@@ -83,16 +91,16 @@ BA_DEF_DEF_ "BusType" "CAN";
 BA_DEF_DEF_ "FieldType" "";
 BA_DEF_DEF_ "GenMsgCycleTime" 0;
 
-BA_ "GenMsgCycleTime" BO_ 100 1000;
 BA_ "GenMsgCycleTime" BO_ 500 100;
+BA_ "GenMsgCycleTime" BO_ 100 1000;
 BA_ "GenMsgCycleTime" BO_ 101 100;
 BA_ "GenMsgCycleTime" BO_ 400 100;
 BA_ "GenMsgCycleTime" BO_ 200 100;
+BA_ "FieldType" SG_ 500 DBC_TEST1_enum "DBC_TEST1_enum";
 BA_ "FieldType" SG_ 100 DRIVER_HEARTBEAT_cmd "DRIVER_HEARTBEAT_cmd";
-BA_ "FieldType" SG_ 500 IO_DEBUG_test_enum "IO_DEBUG_test_enum";
 
 
+VAL_ 500 DBC_TEST1_enum 2 "DBC_TEST1_enum_val_two" 1 "DBC_TEST1_enum_val_one" ;
 VAL_ 100 DRIVER_HEARTBEAT_cmd 2 "DRIVER_HEARTBEAT_cmd_REBOOT" 1 "DRIVER_HEARTBEAT_cmd_SYNC" 0 "DRIVER_HEARTBEAT_cmd_NOOP" ;
-VAL_ 500 IO_DEBUG_test_enum 2 "IO_DEBUG_test2_enum_two" 1 "IO_DEBUG_test2_enum_one" ;
 
 
