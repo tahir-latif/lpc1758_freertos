@@ -623,7 +623,8 @@ def main(argv):
     dbcfile = '243.dbc'  # Default value unless overriden
     self_node = 'DRIVER'  # Default value unless overriden
     gen_all = False
-
+    muxed_signal = False
+    mux_bit_width = 0
     try:
         opts, args = getopt.getopt(argv, "i:s:a", ["ifile=", "self=", "all"])
     except getopt.GetoptError:
@@ -644,6 +645,7 @@ def main(argv):
     dbc = DBC(dbcfile, self_node, gen_all)
     f = open(dbcfile, "r")
     last_mid = -1
+    validFile = True
     while 1:
         line = f.readline()
         if not line:
@@ -658,14 +660,18 @@ def main(argv):
                 print('#error "Self node: ' + self_node + ' not found in _BU nodes in the DBC file"')
                 print('/////////////////////////////// ERROR /////////////////////////////////////')
                 print('')
+                raise ValueError('#error "Self node: ' + self_node + ' not found in _BU nodes in the DBC file"')
 
         # Start of a message
         # BO_ 100 DRIVER_HEARTBEAT: 1 DRIVER
         if line.startswith("BO_ "):
+            muxed_signal = False
+            mux_bit_width = 0
             tokens = line.split(' ')
             msg_id = tokens[1]
             msg_name = tokens[2].strip(":")
             dbc.messages[msg_id] = Message(msg_id, msg_name, tokens[3], tokens[4].strip("\n"))
+            msg_length = tokens[3]
             last_mid = msg_id
 
         # Signals: SG_ IO_DEBUG_test_signed : 16|8@1+ (1,-128) [0|0] "" DBG
@@ -683,8 +689,55 @@ def main(argv):
             s = re.split('[|@]', t[3])
             bit_start = s[0]
             bit_size = s[1]
-            endian_and_sign = s[2]
 
+            if mux == 'M':
+                muxed_signal = True
+                mux_bit_width = int(bit_size)
+
+            # Ensure a mux index 
+            if muxed_signal:
+                if mux == '':
+                    print('/////////////////////////////// ERROR /////////////////////////////////////')
+                    print('#error ' + t[1] + ' is part of a multiplexed message but is missing an index') 
+                    print('/////////////////////////////// ERROR /////////////////////////////////////')
+                    print('')
+                    raise ValueError('#error ' + t[1] + ' is part of a multiplexed message but is missing an index')
+
+                if mux != 'M':
+                    # Do not allow the signal to use the indexing bits
+                    if int(bit_start) < mux_bit_width:
+                        print('/////////////////////////////// ERROR /////////////////////////////////////')
+                        print('#error ' + t[1] + ' start bit overwrites mux index') 
+                        print('/////////////////////////////// ERROR /////////////////////////////////////')
+                        print('')
+                        raise ValueError('#error ' + t[1] + ' start bit overwrites mux index')
+
+                    # Check for mux index out of bounds
+                    if (int(mux[1:]) >= pow(2,mux_bit_width)) or (int(mux[1:]) < 0):
+                        print('/////////////////////////////// ERROR /////////////////////////////////////')
+                        print('#error ' + t[1] + ' mux index out of bounds.') 
+                        print('/////////////////////////////// ERROR /////////////////////////////////////')
+                        print('')
+                        raise ValueError('#error ' + t[1] + ' mux index out of bounds.')
+
+            # If we have an invalid message length then invalidate the DBC and print the offending signal
+            # Signal bit width is <= 0
+            if (int(bit_size) <= 0):
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('#error ' + t[1] + ' has invalid size. Signal bit width is: ' + str(int(bit_size))) 
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('')
+                raise ValueError('#error ' + t[1] + ' has invalid size. Signal bit width is: ' + str(int(bit_size)))
+            
+            # Signal is too wide for message
+            if (int(bit_start) + int(bit_size)) > (int(msg_length) * 8):
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('#error ' + t[1] + ' too large. Signal bit width is: ' + str(int(bit_start) + int(bit_size))) 
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('')
+                raise ValueError('#error ' + t[1] + ' too large. Signal bit width is: ' + str(int(bit_start) + int(bit_size)))
+
+            endian_and_sign = s[2]
             # Split (0.1,1) to two tokens by removing the ( and the )
             s = t[4][1:-1].split(',')
             scale = s[0]
@@ -694,6 +747,38 @@ def main(argv):
             s = t[5][1:-1].split('|')
             min_val = s[0]
             max_val = s[1]
+
+            signal_min = 0
+            signal_max = (float(scale) * pow(2,int(bit_size))) - float(scale)
+            if '-' in t[3]:
+                signal_min = -(float(scale) * pow(2,int(bit_size))) / 2
+                signal_max = (float(scale) * pow(2,int(bit_size)) / 2) - float(scale)
+            # If our min / max values are incorrect then clamping will not work correctly. 
+            # Invalidate the DBC and print out the offending signal.
+            
+            # Offset does not allow for full range
+            if (float(min_val) != 0) and (float(signal_min) < float(offset)):
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('#error ' + t[1] + ' offset value too high. Offset value should be: ' + str(signal_min))
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('')
+                raise ValueError('#error ' + t[1] + ' offset value too high. Offset value should be: ' + str(signal_min))
+
+            # Min for signal is too low.
+            if (float(min_val) != 0) and (float(min_val) < float(signal_min)):
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('#error ' + t[1] + ' min value too low. Min value is: ' + str(signal_min))
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('')
+                raise ValueError('#error ' + t[1] + ' min value too low. Min value is: ' + str(signal_min))
+
+            # Max for signal is too high
+            if (float(max_val) != 0) and (float(max_val)) > (float(signal_max)):
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('#error ' + t[1] + ' max value too high. Max value is: ' + str(signal_max))
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('')
+                raise ValueError('#error ' + t[1] + ' max value too high. Max value is: ' + str(signal_max))
 
             recipients = t[7].strip('\n').split(',')
 
@@ -728,6 +813,10 @@ def main(argv):
                 if enum_name in dbc.messages[sig_mid].signals:
                     if dbc.messages[sig_mid].signals[enum_name].has_field_type:
                         dbc.messages[sig_mid].signals[enum_name].enum_info = pairs
+    
+    # If there were errors in parsing the DBC file then do not continue with generation.
+    if not validFile:
+        sys.exit(-1)
 
     print(dbc.gen_file_header())
     print("\n")
