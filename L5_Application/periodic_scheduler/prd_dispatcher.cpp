@@ -40,10 +40,10 @@ enum {
 static SemaphoreHandle_t sems[prd_total];
 
 /// @{ These are the actual FreeRTOS tasks that call the period functions
-void period_task_1Hz(void *p)    { while (xSemaphoreTake(sems[prd_1Hz],    portMAX_DELAY)) period_1Hz();    }
-void period_task_10Hz(void *p)   { while (xSemaphoreTake(sems[prd_10Hz],   portMAX_DELAY)) period_10Hz();   }
-void period_task_100Hz(void *p)  { while (xSemaphoreTake(sems[prd_100Hz],  portMAX_DELAY)) period_100Hz();  }
-void period_task_1000Hz(void *p) { while (xSemaphoreTake(sems[prd_1000Hz], portMAX_DELAY)) period_1000Hz(); }
+void period_task_1Hz(void *p)    { uint32_t count = 0; while (xSemaphoreTake(sems[prd_1Hz],    portMAX_DELAY)) period_1Hz(++count);    }
+void period_task_10Hz(void *p)   { uint32_t count = 0; while (xSemaphoreTake(sems[prd_10Hz],   portMAX_DELAY)) period_10Hz(++count);   }
+void period_task_100Hz(void *p)  { uint32_t count = 0; while (xSemaphoreTake(sems[prd_100Hz],  portMAX_DELAY)) period_100Hz(++count);  }
+void period_task_1000Hz(void *p) { uint32_t count = 0; while (xSemaphoreTake(sems[prd_1000Hz], portMAX_DELAY)) period_1000Hz(++count); }
 /// @}
 
 periodicSchedulerTask::periodicSchedulerTask(bool kHz_enabled) :

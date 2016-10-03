@@ -59,25 +59,29 @@ bool period_reg_tlm(void)
 }
 
 
+/**
+ * Below are your periodic functions.
+ * The argument 'count' is the number of times each periodic task is called.
+ */
 
-void period_1Hz(void)
+void period_1Hz(uint32_t count)
 {
     LE.toggle(1);
 }
 
-void period_10Hz(void)
+void period_10Hz(uint32_t count)
 {
     LE.toggle(2);
 }
 
-void period_100Hz(void)
+void period_100Hz(uint32_t count)
 {
     LE.toggle(3);
 }
 
 // 1Khz (1ms) is only run if Periodic Dispatcher was configured to run it at main():
 // scheduler_add_task(new periodicSchedulerTask(run_1Khz = true));
-void period_1000Hz(void)
+void period_1000Hz(uint32_t count)
 {
     LE.toggle(4);
 }

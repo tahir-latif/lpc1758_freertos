@@ -36,10 +36,10 @@ extern const uint32_t PERIOD_DISPATCHER_TASK_STACK_SIZE_BYTES;
 bool period_init(void);
 bool period_reg_tlm(void);
 
-void period_1Hz(void);
-void period_10Hz(void);
-void period_100Hz(void);
-void period_1000Hz(void);
+void period_1Hz(uint32_t count);
+void period_10Hz(uint32_t count);
+void period_100Hz(uint32_t count);
+void period_1000Hz(uint32_t count);
 
 #ifdef __cplusplus
 }
