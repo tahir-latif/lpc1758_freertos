@@ -673,6 +673,10 @@ def main(argv):
             dbc.messages[msg_id] = Message(msg_id, msg_name, tokens[3], tokens[4].strip("\n"))
             msg_length = tokens[3]
             last_mid = msg_id
+            fixed_mux_signal = False
+            fixed_signal_end = 0
+            prev_signal_end = 0
+            prev_mux_index = 0
 
         # Signals: SG_ IO_DEBUG_test_signed : 16|8@1+ (1,-128) [0|0] "" DBG
         if line.startswith(" SG_ "):
@@ -694,31 +698,55 @@ def main(argv):
                 muxed_signal = True
                 mux_bit_width = int(bit_size)
 
+            if not muxed_signal:
+                if int(bit_start) < prev_signal_end:
+                    print('/////////////////////////////// ERROR /////////////////////////////////////')
+                    print('#error ' + t[1] + ' start bit overwrites previous signal') 
+                    print('/////////////////////////////// ERROR /////////////////////////////////////')
+                    print('')
+                    raise ValueError('#error ' + t[1] + ' start bit overwrites previous signal')
+
             # Ensure a mux index 
             if muxed_signal:
                 if mux == '':
-                    print('/////////////////////////////// ERROR /////////////////////////////////////')
-                    print('#error ' + t[1] + ' is part of a multiplexed message but is missing an index') 
-                    print('/////////////////////////////// ERROR /////////////////////////////////////')
-                    print('')
-                    raise ValueError('#error ' + t[1] + ' is part of a multiplexed message but is missing an index')
+                    fixed_mux_signal = True
+                    fixed_signal_end = mux_bit_width + int(bit_size)
+                elif mux[0] == 'm':
+                    fixed_mux_signal = False
 
-                if mux != 'M':
-                    # Do not allow the signal to use the indexing bits
+                if fixed_mux_signal:
                     if int(bit_start) < mux_bit_width:
+                        print fixed_signal_end
                         print('/////////////////////////////// ERROR /////////////////////////////////////')
                         print('#error ' + t[1] + ' start bit overwrites mux index') 
                         print('/////////////////////////////// ERROR /////////////////////////////////////')
                         print('')
                         raise ValueError('#error ' + t[1] + ' start bit overwrites mux index')
+                else:
+                    if mux != 'M':
+                        # Do not allow the signal to use the indexing bits
+                        if int(bit_start) < fixed_signal_end:
+                            print('/////////////////////////////// ERROR /////////////////////////////////////')
+                            print('#error ' + t[1] + ' start bit overwrites mux index') 
+                            print('/////////////////////////////// ERROR /////////////////////////////////////')
+                            print('')
+                            raise ValueError('#error ' + t[1] + ' start bit overwrites mux index')
+                        if mux[0] == 'm':
+                        # Check for mux index out of bounds
+                            if (int(mux[1:]) >= pow(2,mux_bit_width)) or (int(mux[1:]) < 0):
+                                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                                print('#error ' + t[1] + ' mux index out of bounds.') 
+                                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                                print('')
+                                raise ValueError('#error ' + t[1] + ' mux index out of bounds.')
 
-                    # Check for mux index out of bounds
-                    if (int(mux[1:]) >= pow(2,mux_bit_width)) or (int(mux[1:]) < 0):
-                        print('/////////////////////////////// ERROR /////////////////////////////////////')
-                        print('#error ' + t[1] + ' mux index out of bounds.') 
-                        print('/////////////////////////////// ERROR /////////////////////////////////////')
-                        print('')
-                        raise ValueError('#error ' + t[1] + ' mux index out of bounds.')
+                            if int(bit_start) < prev_signal_end:
+                                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                                print('#error ' + t[1] + ' start bit overwrites previous signal') 
+                                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                                print('')
+                                raise ValueError('#error ' + t[1] + ' start bit overwrites previous signal')
+                        prev_mux_index = int(mux[1:])
 
             # If we have an invalid message length then invalidate the DBC and print the offending signal
             # Signal bit width is <= 0
@@ -749,21 +777,16 @@ def main(argv):
             max_val = s[1]
 
             signal_min = 0
-            signal_max = (float(scale) * pow(2,int(bit_size))) - float(scale)
+            signal_max = (float(scale) * pow(2,int(bit_size)))
             if '-' in t[3]:
                 signal_min = -(float(scale) * pow(2,int(bit_size))) / 2
-                signal_max = (float(scale) * pow(2,int(bit_size)) / 2) - float(scale)
+                signal_max = (float(scale) * pow(2,int(bit_size)) / 2)
             # If our min / max values are incorrect then clamping will not work correctly. 
             # Invalidate the DBC and print out the offending signal.
-            
-            # Offset does not allow for full range
-            if (float(min_val) != 0) and (float(signal_min) < float(offset)):
-                print('/////////////////////////////// ERROR /////////////////////////////////////')
-                print('#error ' + t[1] + ' offset value too high. Offset value should be: ' + str(signal_min))
-                print('/////////////////////////////// ERROR /////////////////////////////////////')
-                print('')
-                raise ValueError('#error ' + t[1] + ' offset value too high. Offset value should be: ' + str(signal_min))
+            signal_min = signal_min + float(offset)
+            signal_max = signal_max + float(offset) - float(scale)
 
+            print t[1] + ' min: ' + str(signal_min) + ' max: ' + str(signal_max)
             # Min for signal is too low.
             if (float(min_val) != 0) and (float(min_val) < float(signal_min)):
                 print('/////////////////////////////// ERROR /////////////////////////////////////')

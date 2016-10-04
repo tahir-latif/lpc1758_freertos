@@ -65,7 +65,7 @@ BO_ 400 MOTOR_STATUS: 3 MOTOR
 
 BO_ 200 SENSOR_SONARS: 8 SENSOR
  SG_ SENSOR_SONARS_mux M : 0|4@1+ (1,0) [0|0] "" DRIVER,IO
- SG_ SENSOR_SONARS_err_count m0 : 4|12@1+ (1,0) [0|0] "" DRIVER,IO
+ SG_ SENSOR_SONARS_err_count : 4|12@1+ (1,0) [0|0] "" DRIVER,IO
  SG_ SENSOR_SONARS_left m0 : 16|12@1+ (0.1,0) [0|0] "" DRIVER,IO
  SG_ SENSOR_SONARS_middle m0 : 28|12@1+ (0.1,0) [0|0] "" DRIVER,IO
  SG_ SENSOR_SONARS_right m0 : 40|12@1+ (0.1,0) [0|0] "" DRIVER,IO
@@ -77,7 +77,7 @@ BO_ 200 SENSOR_SONARS: 8 SENSOR
 
 BO_ 503 DBC_TEST4: 8 IO
  SG_ DBC_TEST4_real_signed1 : 0|32@1- (1,0) [0|0] "" DBG
- SG_ DBC_TEST4_real_signed2 : 32|16@1- (1,-32768) [-32768|32767] "" DBG
+ SG_ DBC_TEST4_real_signed2 : 32|16@1- (1,0) [-32768|32767] "" DBG
  SG_ DBC_TEST4_real_overflow : 48|16@1+ (1,0) [0|0] "" DBG
 
 
