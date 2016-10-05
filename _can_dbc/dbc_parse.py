@@ -716,7 +716,6 @@ def main(argv):
 
                 if fixed_mux_signal:
                     if int(bit_start) < mux_bit_width:
-                        print fixed_signal_end
                         print('/////////////////////////////// ERROR /////////////////////////////////////')
                         print('#error ' + t[1] + ' start bit overwrites mux index') 
                         print('/////////////////////////////// ERROR /////////////////////////////////////')
@@ -786,7 +785,6 @@ def main(argv):
             signal_min = signal_min + float(offset)
             signal_max = signal_max + float(offset) - float(scale)
 
-            print t[1] + ' min: ' + str(signal_min) + ' max: ' + str(signal_max)
             # Min for signal is too low.
             if (float(min_val) != 0) and (float(min_val) < float(signal_min)):
                 print('/////////////////////////////// ERROR /////////////////////////////////////')
