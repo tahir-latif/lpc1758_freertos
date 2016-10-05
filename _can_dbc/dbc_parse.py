@@ -31,7 +31,7 @@ def MIN(x, y):
 
 
 class Signal(object):
-    def __init__(self, name, bit_start, bit_size, endian_and_sign, scale, offset, min_val, max_val, recipients, mux):
+    def __init__(self, name, bit_start, bit_size, endian_and_sign, scale, offset, min_val, max_val, recipients, mux, signal_min, signal_max):
         self.has_field_type = False
         self.name = name
         self.bit_start = int(bit_start)
@@ -46,6 +46,8 @@ class Signal(object):
         self.min_val_str = min_val
         self.max_val = float(max_val)
         self.max_val_str = max_val
+        self.signal_min = signal_min
+        self.signal_max = signal_max
 
         self.recipients = recipients
         self.enum_info = {}
@@ -625,6 +627,7 @@ def main(argv):
     gen_all = False
     muxed_signal = False
     mux_bit_width = 0
+    msg_ids_used = []
     try:
         opts, args = getopt.getopt(argv, "i:s:a", ["ifile=", "self=", "all"])
     except getopt.GetoptError:
@@ -678,6 +681,29 @@ def main(argv):
             prev_signal_end = 0
             prev_mux_index = 0
 
+            if (int(msg_id) < 0) or (int(msg_id) > 2047):
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('#error msg id '+ msg_id + ' is out of bounds')
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('')
+                raise ValueError('#error msg id '+ msg_id + ' is out of bounds')
+
+            if msg_id not in msg_ids_used:
+                msg_id = msg_ids_used.append(msg_id)
+            else:
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('#error '+ msg_id + ' has already been used')
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('')
+                raise ValueError('#error msg id '+ msg_id + ' has already been used')
+
+            if int(msg_length) > 8 or int(msg_length < 1):
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('#error '+ msg_id + ' has an incorrect number of bytes. It must be between 1 and 8 bytes.')
+                print('/////////////////////////////// ERROR /////////////////////////////////////')
+                print('')
+                raise ValueError('#error msg id '+ msg_id + ' has an incorrect number of bytes. It must be between 1 and 8 bytes.')
+
         # Signals: SG_ IO_DEBUG_test_signed : 16|8@1+ (1,-128) [0|0] "" DBG
         if line.startswith(" SG_ "):
             t = line[1:].split(' ')
@@ -699,13 +725,13 @@ def main(argv):
                 mux_bit_width = int(bit_size)
 
             if not muxed_signal:
-                if int(bit_start) < prev_signal_end:
+                if (int(bit_start) < prev_signal_end):
                     print('/////////////////////////////// ERROR /////////////////////////////////////')
                     print('#error ' + t[1] + ' start bit overwrites previous signal') 
                     print('/////////////////////////////// ERROR /////////////////////////////////////')
                     print('')
                     raise ValueError('#error ' + t[1] + ' start bit overwrites previous signal')
-
+                prev_signal_end = int(bit_start) + int(bit_size)
             # Ensure a mux index 
             if muxed_signal:
                 if mux == '':
@@ -713,6 +739,8 @@ def main(argv):
                     fixed_signal_end = mux_bit_width + int(bit_size)
                 elif mux[0] == 'm':
                     fixed_mux_signal = False
+                    if int(mux[1:]) != prev_mux_index:
+                        prev_signal_end = fixed_signal_end
 
                 if fixed_mux_signal:
                     if int(bit_start) < mux_bit_width:
@@ -729,7 +757,7 @@ def main(argv):
                             print('#error ' + t[1] + ' start bit overwrites mux index') 
                             print('/////////////////////////////// ERROR /////////////////////////////////////')
                             print('')
-                            raise ValueError('#error ' + t[1] + ' start bit overwrites mux index')
+                            raise ValueError('#error ' + t[1] + ' start bit overwrites previous fixed signal')
                         if mux[0] == 'm':
                         # Check for mux index out of bounds
                             if (int(mux[1:]) >= pow(2,mux_bit_width)) or (int(mux[1:]) < 0):
@@ -745,6 +773,7 @@ def main(argv):
                                 print('/////////////////////////////// ERROR /////////////////////////////////////')
                                 print('')
                                 raise ValueError('#error ' + t[1] + ' start bit overwrites previous signal')
+                            prev_signal_end = int(bit_start) + int(bit_size)
                         prev_mux_index = int(mux[1:])
 
             # If we have an invalid message length then invalidate the DBC and print the offending signal
@@ -759,10 +788,10 @@ def main(argv):
             # Signal is too wide for message
             if (int(bit_start) + int(bit_size)) > (int(msg_length) * 8):
                 print('/////////////////////////////// ERROR /////////////////////////////////////')
-                print('#error ' + t[1] + ' too large. Signal bit width is: ' + str(int(bit_start) + int(bit_size))) 
+                print('#error ' + t[1] + ' too large. Message needs ' + str(int(bit_start) + int(bit_size)) + ' bits.') 
                 print('/////////////////////////////// ERROR /////////////////////////////////////')
                 print('')
-                raise ValueError('#error ' + t[1] + ' too large. Signal bit width is: ' + str(int(bit_start) + int(bit_size)))
+                raise ValueError('#error ' + t[1] + ' too large. Message needs ' + str(int(bit_start) + int(bit_size)) + ' bits.')
 
             endian_and_sign = s[2]
             # Split (0.1,1) to two tokens by removing the ( and the )
@@ -804,7 +833,7 @@ def main(argv):
             recipients = t[7].strip('\n').split(',')
 
             # Add the signal the last message object
-            sig = Signal(t[1], bit_start, bit_size, endian_and_sign, scale, offset, min_val, max_val, recipients, mux)
+            sig = Signal(t[1], bit_start, bit_size, endian_and_sign, scale, offset, min_val, max_val, recipients, mux, signal_min, signal_max)
             dbc.messages[last_mid].add_signal(sig)
 
         # Parse the "FieldType" which is the trigger to use enumeration type for certain signals

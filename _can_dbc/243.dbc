@@ -40,7 +40,7 @@ BO_ 500 DBC_TEST1: 8 IO
  SG_ DBC_TEST1_unsigned_minmax : 8|8@1+ (1,0) [0|100] "" DBG
  SG_ DBC_TEST1_enum : 32|8@1+ (1,0) [0|0] "" DBG
  SG_ DBC_TEST1_float : 40|8@1+ (0.5,0) [0|0] "" DBG
- SG_ DBC_TEST1_float_signed : 48|16@1+ (0.001,0) [0|65.355] "" DBG
+ SG_ DBC_TEST1_float_signed : 48|16@1+ (0.001,0) [0|65.535] "" DBG
 
 BO_ 501 DBC_TEST2: 8 IO
  SG_ DBC_TEST2_real_signed1 : 6|12@1- (1,0) [0|0] "" DBG
