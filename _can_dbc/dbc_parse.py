@@ -683,26 +683,26 @@ def main(argv):
 
             if (int(msg_id) < 0) or (int(msg_id) > 2047):
                 print('/////////////////////////////// ERROR /////////////////////////////////////')
-                print('#error msg id '+ msg_id + ' is out of bounds')
+                print('#error msg id '+ tokens[1] + ' is out of bounds')
                 print('/////////////////////////////// ERROR /////////////////////////////////////')
                 print('')
-                raise ValueError('#error msg id '+ msg_id + ' is out of bounds')
+                raise ValueError('#error msg id '+ tokens[1] + ' is out of bounds for 11-bit msgID')
 
             if msg_id not in msg_ids_used:
                 msg_id = msg_ids_used.append(msg_id)
             else:
                 print('/////////////////////////////// ERROR /////////////////////////////////////')
-                print('#error '+ msg_id + ' has already been used')
+                print('#error '+ tokens[1] + ' has already been used')
                 print('/////////////////////////////// ERROR /////////////////////////////////////')
                 print('')
                 raise ValueError('#error msg id '+ msg_id + ' has already been used')
 
-            if int(msg_length) > 8 or int(msg_length < 1):
+            if (int(msg_length) > 8) or (int(msg_length) < 0):
                 print('/////////////////////////////// ERROR /////////////////////////////////////')
-                print('#error '+ msg_id + ' has an incorrect number of bytes. It must be between 1 and 8 bytes.')
+                print('#error ' + str(tokens[1]) + ' has an incorrect number of bytes. It must be between 0 and 8 bytes.')
                 print('/////////////////////////////// ERROR /////////////////////////////////////')
                 print('')
-                raise ValueError('#error msg id '+ msg_id + ' has an incorrect number of bytes. It must be between 1 and 8 bytes.')
+                raise ValueError('#error msg id ' + str(tokens[1]) + ' has an incorrect number of bytes. It must be between 0 and 8 bytes.')
 
         # Signals: SG_ IO_DEBUG_test_signed : 16|8@1+ (1,-128) [0|0] "" DBG
         if line.startswith(" SG_ "):
