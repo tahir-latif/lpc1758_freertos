@@ -37,7 +37,7 @@ void lpc_timer_enable(const lpc_timer_t timer, const uint32_t us_per_tick)
     pTimerStruct->CTCR = 0;
 
     /* Set the resolution */
-    pTimerStruct->PR = (sys_get_cpu_clock() / (1000*1000) * us_per_tick);
+    pTimerStruct->PR = (sys_get_cpu_clock() / (1000*1000) * us_per_tick) - 1;
 }
 
 uint32_t lpc_timer_get_value(const lpc_timer_t timer)
