@@ -30,7 +30,7 @@ extern "C" {
 
 /// @{ @see period_callbacks.cpp for more info
 extern const uint32_t PERIOD_TASKS_STACK_SIZE_BYTES;
-extern const uint32_t PERIOD_DISPATCHER_TASK_STACK_SIZE_BYTES;
+extern const uint32_t PERIOD_MONITOR_TASK_STACK_SIZE_BYTES;
 /// @}
 
 bool period_init(void);
