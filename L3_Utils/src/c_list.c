@@ -52,7 +52,7 @@ c_list_ptr c_list_create(void)
 
 bool c_list_delete(c_list_ptr p, c_list_callback_t delete_callback)
 {
-    c_list_type *list = p;
+    c_list_type *list = (c_list_type*) p;
     if(!list) {
         return false;
     }
@@ -79,19 +79,19 @@ bool c_list_delete(c_list_ptr p, c_list_callback_t delete_callback)
 
 uint32_t c_list_node_count(const c_list_ptr p)
 {
-    const c_list_type *list = p;
+    const c_list_type *list = (const c_list_type*) p;
     return list ? list->node_count : 0;
 }
 
 bool c_list_insert_elm_end(c_list_ptr p, const void *elm_ptr)
 {
-    c_list_type *list = p;
+    c_list_type *list = (c_list_type*) p;
     if(!list) {
         return false;
     }
 
     /* Allocate memory for the new node and copy the data */
-    c_data_node_type *new_node = malloc(sizeof(c_data_node_type));
+    c_data_node_type *new_node = (c_data_node_type*) malloc(sizeof(c_data_node_type));
     if(NULL == new_node) {
         return false;
     }
@@ -115,13 +115,13 @@ bool c_list_insert_elm_end(c_list_ptr p, const void *elm_ptr)
 
 bool c_list_insert_elm_beg(c_list_ptr p, const void *elm_ptr)
 {
-    c_list_type *list = p;
+    c_list_type *list = (c_list_type*) p;
     if(!list) {
         return false;
     }
 
     /* Allocate memory for the new node and copy the data */
-    c_data_node_type *new_node = malloc(sizeof(c_data_node_type));
+    c_data_node_type *new_node = (c_data_node_type*) malloc(sizeof(c_data_node_type));
     if(NULL == new_node) {
         return false;
     }
@@ -140,9 +140,9 @@ bool c_list_insert_elm_beg(c_list_ptr p, const void *elm_ptr)
 
 void* c_list_get_elm_at(c_list_ptr p, uint32_t index, void **hint)
 {
-    c_list_type *list = p;
+    c_list_type *list = (c_list_type*) p;
     if(!list) {
-        return false;
+        return NULL;
     }
 
     c_data_node_type **hint_node = (c_data_node_type**)hint;
@@ -176,7 +176,7 @@ void* c_list_get_elm_at(c_list_ptr p, uint32_t index, void **hint)
 void* c_list_find_elm(c_list_ptr p, c_list_callback_t callback,
                       void *arg1, void *arg2, void *arg3)
 {
-    c_list_type *list = p;
+    c_list_type *list = (c_list_type*) p;
     if(!list || !callback) {
         return NULL;
     }
@@ -194,7 +194,7 @@ void* c_list_find_elm(c_list_ptr p, c_list_callback_t callback,
 
 bool c_list_delete_elm(c_list_ptr p, const void *elm_ptr)
 {
-    c_list_type *list = p;
+    c_list_type *list = (c_list_type*) p;
     if(!list) {
         return false;
     }
@@ -231,7 +231,7 @@ bool c_list_delete_elm(c_list_ptr p, const void *elm_ptr)
 bool c_list_for_each_elm(const c_list_ptr p, c_list_callback_t func,
                            void *arg1, void *arg2, void *arg3)
 {
-    const c_list_type *list = p;
+    const c_list_type *list = (const c_list_type*) p;
 
     if(list && func) {
         c_data_node_type *iterator = list->head;
