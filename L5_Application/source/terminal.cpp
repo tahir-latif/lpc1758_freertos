@@ -100,8 +100,11 @@ bool terminalTask::taskEntry()
                                             "'canbus registers' : See some of CAN BUS registers");
 #endif
 
-    cp.addHandler(storageHandler,  "storage",  "Parameters: 'format sd', 'format flash', 'mount sd', 'mount flash'");
     cp.addHandler(rebootHandler,   "reboot",   "Reboots the system");
+    cp.addHandler(storageHandler,  "storage",  "Parameters: 'format sd', 'format flash', 'mount sd', 'mount flash'");
+#if configUSE_TRACE_FACILITY
+    cp.addHandler(traceHandler,    "trace",    "Starts the FreeRTOS trace: 'trace start', 'trace stop'");
+#endif
     cp.addHandler(logHandler,      "log",      "'log <hello>': log an info message\n"
                                                "'log flush'  : flush the logs\n"
                                                "'log status' : get status of the logger\n"

@@ -16,6 +16,7 @@
  *          p r e e t . w i k i @ g m a i l . c o m
  */
 #include "LPC17xx.h"
+#include "lpc_isr.h"
 
 #include "FreeRTOS.h"
 #include "semphr.h"
@@ -36,11 +37,7 @@ SemaphoreHandle_t g_adc_mutex = 0;
 
 
 
-/**
- * This is the ADC interrupt mapped to startup.cpp IRQ name.
- * This is called by the CPU core when ADC interrupt occurs.
- */
-void ADC_IRQHandler(void)
+static void adc_isr(void)
 {
     const uint16_t twelve_bits = 0x0FFF;
     BaseType_t switch_required = 0;
@@ -76,7 +73,7 @@ void adc0_init()
     // Optional: Provide names of the FreeRTOS objects for the Trace Facility
     vTraceSetMutexName(g_adc_mutex,        "ADC Mutex");
     vTraceSetQueueName(g_adc_result_queue, "ADC RX-Q");
-    vTraceSetISRProperties(ADC_IRQn,       "ADC", IP_adc);
+    isr_register(ADC_IRQn, adc_isr);
 
     NVIC_EnableIRQ(ADC_IRQn);
 }

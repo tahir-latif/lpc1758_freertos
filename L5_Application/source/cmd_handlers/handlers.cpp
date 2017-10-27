@@ -53,8 +53,11 @@ CMD_HANDLER_FUNC(taskListHandler)
     // hack tasks.c at FreeRTOS source code and force include uxTaskGetSystemState()
     const int delayInMs = (int)cmdParams;  // cast parameter str to integer
 
-    if(delayInMs > 0) {
+    if(delayInMs > 0)
+    {
+#if configGENERATE_RUN_TIME_STATS
         vTaskResetRunTimeStats();
+#endif
         vTaskDelayMs(delayInMs);
     }
 
@@ -661,6 +664,34 @@ CMD_HANDLER_FUNC(telemetryHandler)
             }
         }
     }
+    return true;
+}
+#endif
+
+#if configUSE_TRACE_FACILITY
+CMD_HANDLER_FUNC(traceHandler)
+{
+    TracealyzerCommandType msg = { 0 };
+
+    if (cmdParams.containsIgnoreCase("start")) {
+        msg.cmdCode = CMD_SET_ACTIVE;
+        msg.param1 = 1;
+        prvProcessCommand(&msg);
+        output.printf("FreeRTOS trace has been ENABLED:  ");
+    }
+    else if (cmdParams.containsIgnoreCase("stop")) {
+        msg.cmdCode = CMD_SET_ACTIVE;
+        msg.param1 = 0;
+        prvProcessCommand(&msg);
+        output.printf("FreeRTOS trace has been DISABLED:  ");
+    }
+    else {
+        output.printf("Options are 'start' or 'stop'  ");
+    }
+
+    const char * e = xTraceGetLastError();
+    output.printf("Last Error: '%s'\n", e ? e : "None");
+
     return true;
 }
 #endif

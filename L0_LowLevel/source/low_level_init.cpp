@@ -165,13 +165,9 @@ void low_level_init(void)
 {
     // We must initialize the trace before using any FreeRTOS API or malloc from FreeRTOS
     #if (configUSE_TRACE_FACILITY)
-        // Initialize the trace
-        vTraceInitTraceData();
-
         // The trace should be started by the application otherwise it will collect a lot of
         // logs all the way up until the RTOS starts
-        // I tried starting it early but it didn't work :(
-        // uiTraceStart();
+        vTraceEnable(TRC_INIT);
     #endif
 
     rtc_init();

@@ -125,11 +125,10 @@
 #define configMAX_CO_ROUTINE_PRIORITIES         ( 1 )   ///< No need if not using co-routines
 
 /* Run time and task stats gathering related definitions. */
-#define configGENERATE_RUN_TIME_STATS           1       ///< CPU usage utilities
 #define configUSE_TRACE_FACILITY                0       ///< FreeRTOS + Percepio Tracealyzer trace facility
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0       ///< Older FreeRTOS functions
 #define INCLUDE_eTaskGetState                   1       ///< Was needed by the "info" command-line handler
-
+#define configGENERATE_RUN_TIME_STATS           1
 
 /* Features config */
 #define configUSE_MUTEXES                   1
@@ -171,7 +170,22 @@
 /* ARM Cortex M3 has hardware instruction to count leading zeroes */
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION    1
 
+/* Provide runtime stats functions (with or without full TRACE FACILITY) */
+#if configGENERATE_RUN_TIME_STATS
+    #ifdef __cplusplus
+    extern "C" {
+    #endif
+        void rts_not_full_trace_init( void );
+        unsigned int rts_not_full_trace_get();
+        void rts_not_full_trace_reset();
+    #ifdef __cplusplus
+    }
+    #endif
 
+    #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()    rts_not_full_trace_init()
+    #define portGET_RUN_TIME_COUNTER_VALUE()            rts_not_full_trace_get()
+    #define portRESET_TIMER_FOR_RUN_TIME_STATS()        rts_not_full_trace_reset()
+#endif
 
 #if (0 == configUSE_TRACE_FACILITY)
     /*
@@ -188,30 +202,10 @@
                      FAULT_LAST_RUNNING_TASK_NAME = *pTaskName;                      \
                  } while (0)
 
-    #ifdef __cplusplus
-    extern "C" {
-    #endif
-        void rts_not_full_trace_init( void );
-        unsigned int rts_not_full_trace_get();
-        void rts_not_full_trace_reset();
-    #ifdef __cplusplus
-    }
-    #endif
-
-    #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()    rts_not_full_trace_init()
-    #define portGET_RUN_TIME_COUNTER_VALUE()            rts_not_full_trace_get()
-    #define portRESET_TIMER_FOR_RUN_TIME_STATS()        rts_not_full_trace_reset()
-
-    // Stub out macros for the trace facility to avoid conditional compilation everywhere
-    #include "trace/trcUser.h"
-
-// The real trace facility
-#else
-    unsigned trace_get_run_time_counter(void);
-    #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()    /* Sys tick is initted by vPortSetupTimerInterrupt() */
-    #define portGET_RUN_TIME_COUNTER_VALUE()            trace_get_run_time_counter()
-    #define portRESET_TIMER_FOR_RUN_TIME_STATS()        /* Resetting not supported */
-    #include "trace/trcKernelPort.h"                    /* Must be included last */
-#endif  /* (1 == configUSE_TRACE_FACILITY) */
+     // Stub out macros for the trace facility to avoid conditional compilation everywhere
+     #include "trace/trcRecorder.h"
+#else  /* (0 == configUSE_TRACE_FACILITY) */
+    #include "trace/trcRecorder.h"
+#endif /* (1 == configUSE_TRACE_FACILITY) */
 
 #endif /* FREERTOS_CONFIG_H */

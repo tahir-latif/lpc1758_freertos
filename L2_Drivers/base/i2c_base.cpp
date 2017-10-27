@@ -183,7 +183,6 @@ bool I2C_Base::init(uint32_t pclk, uint32_t busRateInKhz)
 
     // Enable I2C and the interrupt for it
     mpI2CRegs->I2CONSET = 0x40;
-    vTraceSetISRProperties(mIRQ, "I2C", IP_i2c);
     NVIC_EnableIRQ(mIRQ);
 
     return true;

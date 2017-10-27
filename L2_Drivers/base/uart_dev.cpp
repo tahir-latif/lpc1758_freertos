@@ -212,7 +212,6 @@ bool UartDev::init(unsigned int pclk, unsigned int baudRate,
     if (LPC_UART0_BASE == (unsigned int) mpUARTRegBase)
     {
         lpc_pconp(pconp_uart0, true);
-        vTraceSetISRProperties(UART0_IRQn, "U0", IP_uart);
         NVIC_EnableIRQ(UART0_IRQn);
     }
     /*
@@ -225,13 +224,11 @@ bool UartDev::init(unsigned int pclk, unsigned int baudRate,
     else if (LPC_UART2_BASE == (unsigned int) mpUARTRegBase)
     {
         lpc_pconp(pconp_uart2, true);
-        vTraceSetISRProperties(UART2_IRQn, "U2", IP_uart);
         NVIC_EnableIRQ(UART2_IRQn);
     }
     else if (LPC_UART3_BASE == (unsigned int) mpUARTRegBase)
     {
         lpc_pconp(pconp_uart3, true);
-        vTraceSetISRProperties(UART3_IRQn, "U3", IP_uart);
         NVIC_EnableIRQ(UART3_IRQn);
     }
     else

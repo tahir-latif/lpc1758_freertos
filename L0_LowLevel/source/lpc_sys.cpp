@@ -48,6 +48,8 @@ static volatile uint16_t g_timer_rollover_count = 0;
 /// Pointer to the timer struct based on SYS_CFG_SYS_TIMER
 LPC_TIM_TypeDef *gp_timer_ptr = NULL;
 
+static void sys_isr(void);
+
 
 
 extern "C" void lpc_sys_setup_system_timer(void)
@@ -96,7 +98,7 @@ extern "C" void lpc_sys_setup_system_timer(void)
      * to drive the periodic ISR above other interrupts since we reset the watchdog timer.
      */
     NVIC_SetPriority(timer_irq, IP_high);
-    vTraceSetISRProperties(timer_irq, "AUX Timer", IP_high);
+    isr_register(lpc_timer_get_irq_num(sys_timer_source), sys_isr);
     NVIC_EnableIRQ(timer_irq);
 }
 
@@ -124,21 +126,7 @@ extern "C" uint64_t sys_get_uptime_us(void)
     return (((uint64_t)rollovers << 32) | after);
 }
 
-/**
- * Actual ISR function (@see startup.cpp)
- */
-#if (0 == SYS_CFG_SYS_TIMER)
-extern "C" void TIMER0_IRQHandler()
-#elif (1 == SYS_CFG_SYS_TIMER)
-extern "C" void TIMER1_IRQHandler()
-#elif (2 == SYS_CFG_SYS_TIMER)
-extern "C" void TIMER2_IRQHandler()
-#elif (3 == SYS_CFG_SYS_TIMER)
-extern "C" void TIMER3_IRQHandler()
-#else
-#error "SYS_CFG_SYS_TIMER must be between 0-3 inclusively"
-void TIMERX_BAD_IRQHandler()
-#endif
+static void sys_isr(void)
 {
     enum {
         timer_mr0_intr_timer_rollover     = (1 << 0),
