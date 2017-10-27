@@ -18,22 +18,14 @@
 
 #include "uart3.hpp"
 #include "LPC17xx.h"     // LPC_UART3_BASE
+#include "lpc_isr.h"
 #include "sys_config.h"  // sys_get_cpu_clock()
 
 
 
-/**
- * IRQ Handler needs to be enclosed in extern "C" because this is C++ file, and
- * we don't want C++ to "mangle" our function name.
- * This ISR Function need needs to be named precisely to override "WEAK" ISR
- * handler defined at startup.cpp
- */
-extern "C"
+static void uart3_isr(void)
 {
-    void UART3_IRQHandler()
-    {
-        Uart3::getInstance().handleInterrupt();
-    }
+    Uart3::getInstance().handleInterrupt();
 }
 
 bool Uart3::init(unsigned int baudRate, int rxQSize, int txQSize)
@@ -47,6 +39,7 @@ bool Uart3::init(unsigned int baudRate, int rxQSize, int txQSize)
     lpc_pclk(pclk_uart3, clkdiv_1);
     const unsigned int pclk = sys_get_cpu_clock();
 
+    isr_register(UART3_IRQn, uart3_isr);
     return UartDev::init(pclk, baudRate, rxQSize, txQSize);
 }
 

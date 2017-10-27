@@ -67,11 +67,8 @@ static inline void handle_eint_list(uint32_t *isr_bits_ptr, volatile uint32_t *i
     };
 }
 
-/// Actual ISR Handler (mapped to startup file's interrupt vector function name)
-#ifdef __cplusplus
-extern "C" {
-#endif
-void EINT3_IRQHandler(void)
+/// Actual ISR Handler
+static void EINT3_isr(void)
 {
     /* Read all the ports' rising and falling isr status */
     uint32_t p0_rising  = LPC_GPIOINT->IO0IntStatR;
@@ -95,9 +92,6 @@ void EINT3_IRQHandler(void)
         LPC_GPIOINT->IO2IntClr = 0xFFFFFFFF;
     }
 }
-#ifdef __cplusplus
-}
-#endif
 
 
 
@@ -129,7 +123,7 @@ static void eint3_enable(uint8_t pin_num, eint_intr_t type, void_func_t func,
         *int_en_reg_ptr |= e->pin_mask;
 
         /* EINT3 shares pin interrupts with Port0 and Port2 */
-        vTraceSetISRProperties(EINT3_IRQn, "EINT3", IP_eint);
+        isr_register(EINT3_IRQn, EINT3_isr);
         NVIC_EnableIRQ(EINT3_IRQn);
     }
 }

@@ -23,9 +23,7 @@
 
 static void_func_t g_rit_callback = 0; /**< RIT Callback function pointer */
 
-
-/** RIT Interrupt function (see startup.cpp) */
-void RIT_IRQHandler()
+static void RIT_isr()
 {
     const uint32_t isr_flag_bitmask = (1 << 0);
     g_rit_callback();
@@ -61,7 +59,7 @@ void rit_enable(void_func_t function, uint32_t time_ms)
 
     // Enable System Interrupt and connect the callback
     g_rit_callback = function;
-    vTraceSetISRProperties(RIT_IRQn, "RIT", IP_RIT);
+    isr_register(RIT_IRQn, RIT_isr);
     NVIC_EnableIRQ(RIT_IRQn);
 }
 

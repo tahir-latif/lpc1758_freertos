@@ -22,6 +22,7 @@
 #include "rtc.h"
 #include "c_list.h"
 #include "LPC17xx.h"
+#include "lpc_isr.h"
 
 
 
@@ -37,10 +38,13 @@ typedef struct {
 static c_list_ptr g_list_timed_alarms = 0;        ///< Alarms for a specified time
 static c_list_ptr g_list_recur_alarms[4] = { 0 }; ///< Recurring alarms, such as "every second"
 
+/// ISR routine for the RTC
+static void RTC_isr(void);
+
 static void rtc_enable_intr(void)
 {
     LPC_RTC->CIIR |= (1 << 0);
-    vTraceSetISRProperties(RTC_IRQn, "RTC", IP_rtc);
+    isr_register(RTC_IRQn, RTC_isr);
     NVIC_EnableIRQ(RTC_IRQn);
 }
 
@@ -126,10 +130,7 @@ alarm_time_t* rtc_alarm_create(alarm_time_t time, SemaphoreHandle_t *pAlarm)
     return &(pNewAlarm->time);
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-void RTC_IRQHandler(void)
+static void RTC_isr(void)
 {
     LPC_RTC->ILR |= (1 << 0); // Clear Increment Interrupt
     long do_yield = 0;
@@ -149,6 +150,3 @@ void RTC_IRQHandler(void)
     c_list_for_each_elm(g_list_timed_alarms, for_each_alarm_callback, &do_yield, NULL, NULL);
     portEND_SWITCHING_ISR(do_yield);
 }
-#ifdef __cplusplus
-}
-#endif

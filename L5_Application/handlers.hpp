@@ -78,6 +78,9 @@ CMD_HANDLER_FUNC(rebootHandler);
 /// Handler to get telemetry
 CMD_HANDLER_FUNC(telemetryHandler);
 
+/// Handler for the FreeRTOS trace
+CMD_HANDLER_FUNC(traceHandler);
+
 /// Learn IR Code handler
 CMD_HANDLER_FUNC(learnIrHandler);
 

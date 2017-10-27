@@ -18,24 +18,14 @@
 
 #include "I2C2.hpp"
 #include "LPC17xx.h"
+#include "lpc_isr.h"
 
 
 
-/**
- * IRQ Handler needs to be enclosed in extern "C" because this is C++ file, and
- * we don't want C++ to "mangle" this function name.
- * This ISR Function need needs to be named precisely to override "WEAK" ISR
- * handler defined at startup.cpp
- */
-extern "C"
+static void i2c2_isr()
 {
-    void I2C2_IRQHandler()
-    {
-        I2C2::getInstance().handleInterrupt();
-    }
+    I2C2::getInstance().handleInterrupt();
 }
-
-
 
 bool I2C2::init(unsigned int speedInKhz)
 {
@@ -66,13 +56,16 @@ bool I2C2::init(unsigned int speedInKhz)
      *  - I2C SDA/SCL with no pull-up
      *  - I2C SDA/SCL shorted to ground
      */
+    bool status = false;
     if (i2c_wires_are_pulled_high) {
-        return I2C_Base::init(pclk, speedInKhz);
+        status = I2C_Base::init(pclk, speedInKhz);
+        isr_register(I2C2_IRQn, i2c2_isr);
     }
     else {
         disableOperation();
-        return false;
     }
+
+    return status;
 }
 
 I2C2::I2C2() : I2C_Base((LPC_I2C_TypeDef*) LPC_I2C2_BASE)

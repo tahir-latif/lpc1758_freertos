@@ -23,6 +23,7 @@
 
 #include "can.h"
 #include "LPC17xx.h"
+#include "lpc_isr.h"
 #include "sys_config.h"
 #include "lpc_sys.h"    // sys_get_uptime_ms()
 
@@ -257,13 +258,9 @@ static void CAN_handle_isr(const can_t can)
 /** @} */
 
 /**
- * Actual ISR Handler (mapped to startup file's interrupt vector function name)
  * This interrupt is shared between CAN1, and CAN2
  */
-#ifdef __cplusplus
-extern "C" {
-#endif
-void CAN_IRQHandler(void)
+static void CAN_isr(void)
 {
     const uint32_t pconp = LPC_SC->PCONP;
 
@@ -276,9 +273,6 @@ void CAN_IRQHandler(void)
         CAN_handle_isr(can2);
     }
 }
-#ifdef __cplusplus
-}
-#endif
 
 
 
@@ -402,7 +396,7 @@ bool CAN_init(can_t can, uint32_t baudrate_kbps, uint16_t rxq_size, uint16_t txq
         }
 
         /* Finally, enable the actual CPU core interrupt */
-        vTraceSetISRProperties(CAN_IRQn, "CAN", IP_can);
+        isr_register(CAN_IRQn, CAN_isr);
         NVIC_EnableIRQ(CAN_IRQn);
     }
 
