@@ -31,7 +31,7 @@
 #include <stdint.h>
 #include "io.hpp"
 #include "periodic_callback.h"
-
+#include "c_period_callbacks.h"
 
 
 /// This is the stack size used for each of the period tasks (1Hz, 10Hz, 100Hz, and 1000Hz)
@@ -48,14 +48,14 @@ const uint32_t PERIOD_MONITOR_TASK_STACK_SIZE_BYTES = (512 * 3);
 /// Called once before the RTOS is started, this is a good place to initialize things once
 bool period_init(void)
 {
-    return true; // Must return true upon success
+    return C_period_init(); // Must return true upon success
 }
 
 /// Register any telemetry variables
 bool period_reg_tlm(void)
 {
     // Make sure "SYS_CFG_ENABLE_TLM" is enabled at sys_config.h to use Telemetry
-    return true; // Must return true upon success
+    return C_period_reg_tlm(); // Must return true upon success
 }
 
 
@@ -66,16 +66,19 @@ bool period_reg_tlm(void)
 
 void period_1Hz(uint32_t count)
 {
+    C_period_1Hz(count);
     LE.toggle(1);
 }
 
 void period_10Hz(uint32_t count)
 {
+    C_period_10Hz(count);
     LE.toggle(2);
 }
 
 void period_100Hz(uint32_t count)
 {
+    C_period_100Hz(count);
     LE.toggle(3);
 }
 
@@ -83,5 +86,6 @@ void period_100Hz(uint32_t count)
 // scheduler_add_task(new periodicSchedulerTask(run_1Khz = true));
 void period_1000Hz(uint32_t count)
 {
+    C_period_1000Hz(count);
     LE.toggle(4);
 }
