@@ -8,3 +8,15 @@ The general idea is to interact with the project through terminal commands.
 -----------------------------------------------------------------------------
 See "ChangeLog" for the changes made to the sample project source code.
 -----------------------------------------------------------------------------
+
+
+Download toolchain from here 
+linux
+curl -C - -LO https://developer.arm.com/-/media/Files/downloads/gnu-rm/6-2017q2/gcc-arm-none-eabi-6-2017-q2-update-linux.tar.bz2
+extract it with "tar --extract --verbose --bzip2 --file=gcc-arm-none-eabi-6-2017-q2-update-linux.tar.bz2 --exclude='share/doc' 2> /dev/null"
+
+mac
+curl -C - -LO https://developer.arm.com/-/media/Files/downloads/gnu-rm/6-2017q2/gcc-arm-none-eabi-6-2017-q2-update-mac.tar.bz2
+extract it with "tar --extract --verbose --bzip2 --file=gcc-arm-none-eabi-6-2017-q2-update-mac.tar.bz2 --exclude='share/doc' 2> /dev/null"
+
+windows                 https://developer.arm.com/-/media/Files/downloads/gnu-rm/6-2017q2/gcc-arm-none-eabi-6-2017-q2-update-win32.zip

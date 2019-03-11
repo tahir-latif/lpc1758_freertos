@@ -23,7 +23,7 @@
 #ifndef i2c2_device_HPP_
 #define i2c2_device_HPP_
 
-#include "I2C2.hpp"
+#include "i2c2.hpp"
 
 
 

@@ -16,7 +16,7 @@
  *          p r e e t . w i k i @ g m a i l . c o m
  */
 
-#include "I2C2.hpp"
+#include "i2c2.hpp"
 #include "LPC17xx.h"
 #include "lpc_isr.h"
 
